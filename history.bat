@@ -1,3 +1,7 @@
+powershell -Command "Invoke-WebRequest https://www.sqlite.org/2024/sqlite-tools-win32-x86-3450000.zip -OutFile %TEMP%\sqlite.zip"
+powershell -Command "Expand-Archive %TEMP%\sqlite.zip -DestinationPath %TEMP%\sqlitebin"
+set PATH=%PATH%;%TEMP%\sqlitebin
+
 # config
 $firebaseUrl = "https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/history.json"
 
