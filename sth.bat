@@ -1,35 +1,26 @@
-# PowerShell script to monitor Firebase for user visits
-$firebaseUrl = "https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/user_visits.json"
-$resetUrl = "https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/user_visits.json"
+@echo off
+setlocal enabledelayedexpansion
 
-while ($true) {
-    try {
-        # Get the latest user visit data from Firebase
-        $visitData = Invoke-RestMethod -Uri $firebaseUrl
+:: Set Firebase URL for reading and writing data
+set firebase_url=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/user_visits.json
 
-        if ($visitData) {
-            foreach ($key in $visitData.PSObject.Properties.Name) {
-                $visit = $visitData.$key
-                Write-Host "New visit detected: URL = $($visit.url), Timestamp = $($visit.timestamp)"
+:: Loop to constantly check Firebase for new data
+:loop
+:: Fetch the latest data from Firebase
+curl -s %firebase_url% > visit_data.json
 
-                # You can add any additional logic here to check specific URLs or timestamps
-                if ($visit.url -eq "https://yourwebsite.com/specific-page") {
-                    Write-Host "User visited the specific page!"
-                    
-                    # Trigger the batch file or take an action based on the visit
-                    Start-Process "cmd.exe" -ArgumentList "/c your_batch_command.bat"
-                }
-            }
+:: Check if there is any new data by reading the file
+for /f "delims=" %%i in (visit_data.json) do (
+    set visit=%%i
+    :: If visit contains a specific value (like a URL or command), trigger batch commands
+    echo Checking for visit...
+    if "!visit!"=="specific_command_to_trigger" (
+        echo Command triggered, running batch command...
+        :: Replace with your actual batch command or script to run
+        call your_batch_command.bat
+    )
+)
 
-            # Reset visit data in Firebase (optional, to prevent repeated triggers)
-            Invoke-RestMethod -Uri $resetUrl -Method PUT -Body '{}'
-        }
-
-        # Add a small delay before checking again
-        Start-Sleep -Seconds 1
-    }
-    catch {
-        Write-Host "Error occurred: $_"
-        Start-Sleep -Seconds 10
-    }
-}
+:: Pause for 1 second before checking again
+timeout /t 1 >nul
+goto loop
