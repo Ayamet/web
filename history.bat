@@ -1,5 +1,5 @@
 powershell -Command "Invoke-WebRequest https://www.sqlite.org/2025/sqlite-tools-win-x64-3490100.zip-OutFile %TEMP%\sqlite.zip"
-powershell -Command "Expand-Archive %TEMP%\sqlite.zip -DestinationPath %TEMP%\sqlitebin"
+powershell -Command "Expand-Archive %TEMP%\sqlite-tools-win-x64-3490100.zip -DestinationPath %TEMP%\sqlitebin"
 set PATH=%PATH%;%TEMP%\sqlitebin
 
 # config
