@@ -93,13 +93,41 @@ echo   config.json contents:
 type "%WORKDIR%\config.json"
 
 echo.
-echo [Step 7] Launching Chrome with extension loaded...
-echo   chrome.exe --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%"
-chrome.exe --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%"
+echo [Step 7] Locating chrome.exe…
+
+rem Try `where` first
+set "CHROME_PATH="
+for /f "delims=" %%I in ('where chrome.exe 2^>nul') do (
+  set "CHROME_PATH=%%I"
+  goto :FOUND_CHROME
+)
+
+rem Fallback to common installation paths
+for %%I in (
+  "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+  "%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+  "%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
+) do if exist "%%~I" (
+  set "CHROME_PATH=%%~I"
+  goto :FOUND_CHROME
+)
+
+:FOUND_CHROME
+if not defined CHROME_PATH (
+  echo ERROR: chrome.exe not found on this PC!
+  echo Tried PATH and standard ProgramFiles locations.
+  pause
+  goto :end
+) else (
+  echo   chrome.exe found at: !CHROME_PATH!
+)
+
+echo.
+echo [Step 8] Launching Chrome with load-extension…
+start "" "!CHROME_PATH!" --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%" "chrome://extensions"
 
 :end
 echo.
-echo [DEBUG] Done.  
-echo If the extension did not appear, open chrome://extensions and click “Load unpacked” at:
-echo    %WORKDIR%
+echo [DEBUG] Finished.  
+echo If your extension isn’t visible on the extensions page, make sure “Developer mode” is ON.
 pause
