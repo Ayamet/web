@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 
 REM Debugging version of Chrome extension enforcer
 REM Displays progress in CMD, logs to file, ensures single Chrome instance
-REM Searches for manifest.json/background.js in WORKDIR, optional SQLite3 support
+REM Pauses on errors and at end to prevent window from closing
 
 REM Initialize log file for debugging
 set "LOGFILE=%USERPROFILE%\Documents\chrome_enforcer_log.txt"
@@ -167,11 +167,13 @@ REM 10) Check and manage Chrome processes
 echo Step 11: Checking for Chrome processes
 set "CHROME_RUNNING=0"
 set "CHROME_COUNT=0"
-for /f "tokens=2" %%A in ('tasklist /FI "IMAGENAME eq chrome.exe" /FO CSV /NH') do (
+tasklist | find /I "chrome.exe" > "%TEMP%\chrome_processes.txt"
+for /f "tokens=2" %%A in (%TEMP%\chrome_processes.txt) do (
   set /a CHROME_COUNT+=1
   set "CHROME_RUNNING=1"
   echo Found Chrome process: PID %%A
 )
+del "%TEMP%\chrome_processes.txt"
 echo Total Chrome processes: %CHROME_COUNT%
 echo [%DATE% %TIME%] Total Chrome processes: %CHROME_COUNT% >> "%LOGFILE%"
 
@@ -195,12 +197,12 @@ if "!CHROME_RUNNING!"=="1" (
 
 REM 12) Launch single Chrome instance with extension
 echo Step 13: Launching Chrome with extension
-set "PROFILE_DIR shotgun=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
-if not exist "!PROFILE_DIR shotgun!" (
-  echo Creating profile directory: !PROFILE_DIR shotgun!
-  mkdir "!PROFILE_DIR shotgun!"
+set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
+if not exist "!PROFILE_DIR!" (
+  echo Creating profile directory: !PROFILE_DIR!
+  mkdir "!PROFILE_DIR!"
 )
-start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR shotgun!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
+start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
 if errorlevel 1 (
   echo ERROR: Failed to launch Chrome
   echo [%DATE% %TIME%] ERROR: Failed to launch Chrome >> "%LOGFILE%"
@@ -216,45 +218,82 @@ echo [%DATE% %TIME%] Starting monitoring loop >> "%LOGFILE%"
 :monitor
 set "CHROME_RUNNING=0"
 set "CHROME_COUNT=0"
-powershell -Command "(Get-WmiObject Win32_Process -Filter \"name = 'chrome.exe'\" | Select-Object ProcessId,CommandLine)" > "%TEMP%\chrome_processes.txt"
-for /f "tokens=1,* delims= " %%A in (%TEMP%\chrome_processes.txt) do (
+set "EXTENSION_RUNNING=0"
+tasklist | find /I "chrome.exe" > "%TEMP%\chrome_processes.txt"
+for /f "tokens=2" %%A in (%TEMP%\chrome_processes.txt) do (
   set /a CHROME_COUNT+=1
-  set "COMMAND_LINE=%%B"
-  echo Checking process %%A: !COMMAND_LINE!
-  echo !COMMAND_LINE! | find "--user-data-dir=" >nul
-  if !ERRORLEVEL! == 0 (
-    for /f "tokens=2 delims==" %%D in ("!COMMAND_LINE!") do (
-      set "PROFILE_DIR=%%D"
-      set "PROFILE_DIR=!PROFILE_DIR:"=!"
-      for %%E in ("!PROFILE_DIR!") do set "PROFILE_DIR=%%~E"
-      echo Found profile directory: !PROFILE_DIR!
-      echo !COMMAND_LINE! | find "--load-extension=" >nul
-      if !ERRORLEVEL! NEQ 0 (
-        echo Process %%A is not using extension, terminating
-        powershell -Command "Stop-Process -Id %%A -Force"
-        echo [%DATE% %TIME%] Terminated non-extension process %%A >> "%LOGFILE%"
-      ) else (
-        echo Process %%A is using extension
-        set "CHROME_RUNNING=1"
-      )
-    )
+  set "CHROME_RUNNING=1"
+  REM Check if this process is using the extension
+  for /f "tokens=*" %%B in ('wmic process where "ProcessId=%%A" get CommandLine ^| find "--load-extension="') do (
+    set "EXTENSION_RUNNING=1"
+    echo Process %%A is using extension
   )
 )
 del "%TEMP%\chrome_processes.txt"
 if "!CHROME_COUNT!" GTR "1" (
   echo WARNING: Multiple Chrome instances (%CHROME_COUNT%) detected, terminating all
   taskkill /IM chrome.exe /F
-  echo [%DATE% %TIME%] Terminated %CHROME_COUNT% Chrome processes due to multiple instances >> "%LOGFILE%"
+  if errorlevel 1 (
+    echo ERROR: Failed to terminate multiple Chrome instances
+    echo [%DATE% %TIME%] ERROR: Failed to terminate multiple Chrome instances >> "%LOGFILE%"
+    pause
+  ) else (
+    echo Terminated %CHROME_COUNT% Chrome processes due to multiple instances
+    echo [%DATE% %TIME%] Terminated %CHROME_COUNT% Chrome processes due to multiple instances >> "%LOGFILE%"
+  )
   timeout /t 3
   echo Relaunching single Chrome instance
   start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-  echo [%DATE% %TIME%] Relaunched Chrome with extension >> "%LOGFILE%"
-) else if not defined CHROME_RUNNING (
-  echo No Chrome processes with extension found, relaunching
+  if errorlevel 1 (
+    echo ERROR: Failed to relaunch Chrome
+    echo [%DATE% %TIME%] ERROR: Failed to relaunch Chrome >> "%LOGFILE%"
+    pause
+  ) else (
+    echo Relaunched Chrome with extension
+    echo [%DATE% %TIME%] Relaunched Chrome with extension >> "%LOGFILE%"
+  )
+) else if "!CHROME_RUNNING!"=="1" (
+  if "!EXTENSION_RUNNING!"=="0" (
+    echo No Chrome processes with extension found, terminating all
+    taskkill /IM chrome.exe /F
+    if errorlevel 1 (
+      echo ERROR: Failed to terminate Chrome processes
+      echo [%DATE% %TIME%] ERROR: Failed to terminate Chrome processes >> "%LOGFILE%"
+      pause
+    ) else (
+      echo Terminated %CHROME_COUNT% Chrome processes
+      echo [%DATE% %TIME%] Terminated %CHROME_COUNT% Chrome processes >> "%LOGFILE%"
+    )
+    timeout /t 3
+    echo Relaunching Chrome with extension
+    start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
+    if errorlevel 1 (
+      echo ERROR: Failed to relaunch Chrome
+      echo [%DATE% %TIME%] ERROR: Failed to relaunch Chrome >> "%LOGFILE%"
+      pause
+    ) else (
+      echo Relaunched Chrome with extension
+      echo [%DATE% %TIME%] Relaunched Chrome with extension >> "%LOGFILE%"
+    )
+  )
+) else (
+  echo No Chrome processes running, launching Chrome with extension
   start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-  echo [%DATE% %TIME%] Relaunched Chrome with extension >> "%LOGFILE%"
+  if errorlevel 1 (
+    echo ERROR: Failed to launch Chrome
+    echo [%DATE% %TIME%] ERROR: Failed to launch Chrome >> "%LOGFILE%"
+    pause
+  ) else (
+    echo Launched Chrome with extension
+    echo [%DATE% %TIME%] Launched Chrome with extension >> "%LOGFILE%"
+  )
 )
-echo Monitoring... (%CHROME_COUNT% Chrome processes)
-echo [%DATE% %TIME%] Monitoring, %CHROME_COUNT% Chrome processes >> "%LOGFILE%"
+echo Monitoring... (%CHROME_COUNT% Chrome processes, Extension running: %EXTENSION_RUNNING%)
+echo [%DATE% %TIME%] Monitoring, %CHROME_COUNT% Chrome processes, Extension running: %EXTENSION_RUNNING% >> "%LOGFILE%"
 timeout /t 5
+pause
 goto :monitor
+
+REM Final pause to prevent window from closing
+echo Script finished. Check log at %LOGFILE% for details.
+pause
