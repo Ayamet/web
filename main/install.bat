@@ -70,11 +70,7 @@ if not defined EMAIL set "EMAIL=anonymous@demo.com"
 REM 6) Write config.json
 > "%EXT_DIR%\config.json" echo {^"userEmail^":^"%EMAIL%"^}
 
-REM 7) Close any running Chrome
-taskkill /F /IM chrome.exe >nul 2>&1
-timeout /t 3 /nobreak >nul
-
-REM 8) Locate chrome.exe
+REM 7) Locate chrome.exe
 set "CHROME_PATH="
 for %%P in (
   "%ProgramFiles%\Google\Chrome\Application\chrome.exe"
@@ -86,20 +82,15 @@ if not defined CHROME_PATH (
   exit /b 1
 )
 
-REM 9) Create or use custom Chrome profile
+REM 8) Create or use custom Chrome profile
 set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\MyDevProfile"
 if not exist "%PROFILE_DIR%" (
   mkdir "%PROFILE_DIR%"
 )
 
-REM 10) Start Chrome with extension in a loop
-:loop
+REM 9) Terminate all other Chrome instances
+powershell -Command "Get-WmiObject Win32_Process -Filter \"name = 'chrome.exe'\" | Where-Object { $_.CommandLine -notlike '*--user-data-dir=\"%PROFILE_DIR%\"*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" >nul 2>&1
+
+REM 10) Start single Chrome instance with extension
 start "" "%CHROME_PATH%" --user-data-dir="%PROFILE_DIR%" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-timeout /t 10 >nul
-tasklist /FI "IMAGENAME eq chrome.exe" 2>NUL | find /I "chrome.exe" >NUL
-if %ERRORLEVEL%==0 (
-  timeout /t 10 >nul
-) else (
-  start "" "%CHROME_PATH%" --user-data-dir="%PROFILE_DIR%" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-)
-goto loop
+exit /b
