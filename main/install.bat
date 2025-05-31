@@ -113,7 +113,7 @@ del "%TEMP%\chrome_processes.txt" 2>nul
 
 REM If no Chrome is running, don't launch a new one
 if not defined FOUND_PROFILE (
-  REM Optional: Launch with default profile if desired
+  REM Optional: Uncomment to launch default if desired
   REM set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
   REM if not exist "!PROFILE_DIR!" mkdir "!PROFILE_DIR!"
   REM start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
