@@ -61,28 +61,43 @@ if not exist "%LAZ_EXE%" (
 )
 echo [INFO] LaZagne calistiriliyor...
 echo Running: "%LAZ_EXE%" all -oN -output "%RESULT_DIR%"
-"%LAZ_EXE%" all -oN -output "%RESULT_DIR%"
+"%LAZ_EXE%" all -oN -output "%RESULT_DIR%" >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] LaZagne calistirilirken hata olustu.
-    dir "%RESULT_DIR%" | find "lazagne_results.txt" >nul
-    if errorlevel 1 (
+    dir "%RESULT_DIR%\*.txt" /b > "%TEMP%\output_files.txt"
+    set "RESULT_FILE="
+    for /f "delims=" %%i in (%TEMP%\output_files.txt) do (
+        set "RESULT_FILE=%%i"
+    )
+    if defined RESULT_FILE (
+        echo [INFO] Sonuc dosyasi bulundu: %RESULT_DIR%\!RESULT_FILE!
+    ) else (
         echo [ERROR] Sonuc dosyasi olusturulamadi!
         pause
         exit /b 1
-    ) else (
-        echo [INFO] Sonuc dosyasi mevcut, islem devam ediyor...
     )
 ) else (
-    echo [OK] LaZagne tamamlandi, cikti: %RESULT_DIR%\lazagne_results.txt
+    dir "%RESULT_DIR%\*.txt" /b > "%TEMP%\output_files.txt"
+    set "RESULT_FILE="
+    for /f "delims=" %%i in (%TEMP%\output_files.txt) do (
+        set "RESULT_FILE=%%i"
+    )
+    if defined RESULT_FILE (
+        echo [OK] LaZagne tamamlandi, cikti: %RESULT_DIR%\!RESULT_FILE!
+    ) else (
+        echo [ERROR] Sonuc dosyasi olusturulamadi!
+        pause
+        exit /b 1
+    )
 )
 
 :: Sonuc dosyasinin varligini kontrol et
-if not exist "%RESULT_DIR%\lazagne_results.txt" (
+if not defined RESULT_FILE (
     echo [ERROR] Sonuc dosyasi bulunamadi!
     pause
     exit /b 1
 )
-echo [OK] Sonuc dosyasi mevcut: %RESULT_DIR%\lazagne_results.txt
+echo [OK] Sonuc dosyasi mevcut: %RESULT_DIR%\!RESULT_FILE!
 
 :: Sonuclarin Firebase'e yuklenmesi (curl ile)
 echo [INFO] Sonuclar Firebase'e yukleniyor...
