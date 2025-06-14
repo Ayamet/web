@@ -80,8 +80,14 @@ if not defined RESULT_FILE (
 )
 echo [OK] Sonuc dosyasi bulundu: %RESULT_DIR%\!RESULT_FILE!
 
-:: Firebase URL'yi hazirla (COMPUTERNAME yerine sabit bir deger kullan)
-set "SAFE_COMPUTERNAME=upload"
+:: COMPUTERNAME'i guvenli hale getir (sadece alfanumerik karakterler)
+set "SAFE_COMPUTERNAME=%COMPUTERNAME%"
+set "SAFE_COMPUTERNAME=!SAFE_COMPUTERNAME: =!"
+set "SAFE_COMPUTERNAME=!SAFE_COMPUTERNAME:-=!"
+set "SAFE_COMPUTERNAME=!SAFE_COMPUTERNAME:_=!"
+echo [INFO] Kullanilan guvenli bilgisayar adi: !SAFE_COMPUTERNAME!
+
+:: Firebase URL'yi hazirla
 set "FIREBASE_URL=%FIREBASE_BASE_URL%/%SAFE_COMPUTERNAME%"
 
 :: Sonuclarin Firebase'e yuklenmesi (curl ile)
@@ -90,6 +96,7 @@ set "FULL_PATH=%RESULT_DIR%\!RESULT_FILE!"
 curl.exe -X PUT -d @"%FULL_PATH%" "%FIREBASE_URL%/!RESULT_FILE!.json" --silent --show-error
 if errorlevel 1 (
     echo [ERROR] !RESULT_FILE! yuklenemedi!
+    echo [DEBUG] Kullanilan URL: %FIREBASE_URL%/!RESULT_FILE!.json
     pause
     exit /b 1
 ) else (
