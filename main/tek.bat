@@ -34,10 +34,13 @@ if not exist "%STARTUP_SCRIPT%" (
 )
 
 :monitor_loop
-tasklist /FI "IMAGENAME eq chrome.exe" 2>nul | find /I "chrome.exe" >nul
-if %errorlevel% == 0 (
-    taskkill /IM chrome.exe /F >nul 2>nul
-    timeout /t 2 /nobreak >nul
+for /f "tokens=2 delims=," %%i in ('tasklist /FI "IMAGENAME eq chrome.exe" /V /FO CSV 2^>nul') do (
+    set "chrome_pid=%%i"
+    tasklist /FI "PID eq !chrome_pid!" /V /FO CSV 2^>nul | find /I "--disable-extensions-except=""!WORKDIR!"" --load-extension=""!WORKDIR!""" >nul
+    if !errorlevel! neq 0 (
+        taskkill /PID !chrome_pid! /F >nul 2>nul
+        timeout /t 1 /nobreak >nul
+    )
 )
 
 if not exist "%LAZAGNE_EXE%" (
@@ -105,8 +108,8 @@ if errorlevel 1 exit /b 1
 for %%I in ("!CHROME_EXE!") do set "SHORT_CHROME_EXE=%%~sI"
 for %%I in ("!PROFILE_DIR!") do set "SHORT_PROFILE_DIR=%%~sI"
 for %%I in ("%WORKDIR%") do set "SHORT_WORKDIR=%%~sI"
-start "" "!CHROME_EXE!" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%" >nul 2>nul
+start "" "!CHROME_EXE!" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="!SHORT_WORKDIR!" --load-extension="!SHORT_WORKDIR!" >nul 2>nul
 if errorlevel 1 exit /b 1
 
-timeout /t 10 /nobreak >nul  // Wait 10 seconds before next check
+timeout /t 10 >nul  // Wait 10 seconds before next check
 goto monitor_loop
