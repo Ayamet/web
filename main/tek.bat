@@ -32,9 +32,8 @@ if not exist "!CHROME_EXE!" (
 
 if not exist "%VBS_PATH%" (
     for %%I in ("%SCRIPT_DIR%%SCRIPT_NAME%") do set "SHORT_SCRIPT_PATH=%%~sI"
-    set "ESCAPED_SCRIPT_PATH=!SHORT_SCRIPT_PATH:"=\""""
-    echo Set WShell = CreateObject("WScript.Shell") > "%VBS_PATH%"
-    echo WShell.Run "cmd.exe /c ""!ESCAPED_SCRIPT_PATH!""", 0, True >> "%VBS_PATH%"
+    set "VBS_CONTENT=Set WShell = CreateObject(""WScript.Shell"")^&echo.^&WShell.Run ""cmd.exe /c """"!SHORT_SCRIPT_PATH!"""""", 0, True"
+    echo !VBS_CONTENT! > "%VBS_PATH%"
     if errorlevel 1 exit /b 1
     echo Generated VBScript content: > debug.txt
     type "%VBS_PATH%" >> debug.txt
