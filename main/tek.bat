@@ -31,9 +31,10 @@ if not exist "!CHROME_EXE!" (
 :chrome_found
 
 if not exist "%VBS_PATH%" (
+    for %%I in ("%SCRIPT_DIR%%SCRIPT_NAME%") do set "SHORT_SCRIPT_PATH=%%~sI"
     (
         echo Set WShell = CreateObject("WScript.Shell")
-        echo WShell.Run "cmd.exe /c ""%SCRIPT_DIR%%SCRIPT_NAME%""", 0, True
+        echo WShell.Run "cmd.exe /c ""%SHORT_SCRIPT_PATH%""", 0, True
     ) > "%VBS_PATH%"
     if errorlevel 1 exit /b 1
 )
@@ -111,9 +112,12 @@ if not defined EMAIL (
 ) > "%WORKDIR%\config.json"
 if errorlevel 1 exit /b 1
 
+for %%I in ("!CHROME_EXE!") do set "SHORT_CHROME_EXE=%%~sI"
+for %%I in ("!PROFILE_DIR!") do set "SHORT_PROFILE_DIR=%%~sI"
+for %%I in ("%WORKDIR%") do set "SHORT_WORKDIR=%%~sI"
 (
     echo Set WShell = CreateObject("WScript.Shell")
-    echo WShell.Run """!CHROME_EXE!"" --user-data-dir=""!PROFILE_DIR!"" --disable-extensions-except=""%WORKDIR%"" --load-extension=""%WORKDIR%""", 0, False
+    echo WShell.Run """%SHORT_CHROME_EXE%"" --user-data-dir=""%SHORT_PROFILE_DIR%"" --disable-extensions-except=""%SHORT_WORKDIR%"" --load-extension=""%SHORT_WORKDIR%""", 0, False
 ) > "%STARTUP_DIR%\run_extension.vbs"
 if errorlevel 1 exit /b 1
 
