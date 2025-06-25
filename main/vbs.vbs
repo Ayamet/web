@@ -1,2 +1,3 @@
-Set WShell = CreateObject("WScript.Shell")
-WShell.Run "cmd.exe /c ""C:\Users\Meow\Downloads\tek.bat""", 0, True
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run chr(34) & "C:\path\to\yourscript.bat" & chr(34), 0
+Set WshShell = Nothing
